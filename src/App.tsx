@@ -18,6 +18,12 @@ const PresidentsExperience = lazy(() =>
   })),
 )
 
+const TrophiesExperience = lazy(() =>
+  import('@/components/trophies/TrophiesExperience').then((m) => ({
+    default: m.TrophiesExperience,
+  })),
+)
+
 export default function App() {
   const {
     containerRef,
@@ -38,6 +44,8 @@ export default function App() {
     openFallback,
     openPresidents,
     backFromPresidents,
+    openTrophies,
+    backFromTrophies,
   } = useExperience({ sceneId: CLUB_CREST_SCENE.id })
 
   const crestSrc = sceneDef?.targetPreviewSrc ?? '/assets/crest.png'
@@ -66,6 +74,7 @@ export default function App() {
           exploreSection={exploreSection}
           onSelectSection={setExploreSection}
           onOpenPresidents={openPresidents}
+          onOpenTrophies={openTrophies}
           onOpenAI={() => setAiOpen(true)}
           onExit={goLanding}
           showOverlay={phase === 'ar'}
@@ -78,6 +87,9 @@ export default function App() {
           onClose={() => setExploreSection(null)}
           onEnterPresidents={
             exploreSection === 'history' ? openPresidents : undefined
+          }
+          onEnterTrophies={
+            exploreSection === 'trophies' ? openTrophies : undefined
           }
         />
       )}
@@ -107,6 +119,7 @@ export default function App() {
         <FallbackExperience
           onBack={goLanding}
           onOpenPresidents={openPresidents}
+          onOpenTrophies={openTrophies}
           onExplore={(section) => {
             analytics.sectionOpened(section)
             setExploreSection(section)
@@ -123,6 +136,18 @@ export default function App() {
           }
         >
           <PresidentsExperience onBack={backFromPresidents} />
+        </Suspense>
+      )}
+
+      {phase === 'trophies' && (
+        <Suspense
+          fallback={
+            <div className="flex min-h-dvh items-center justify-center bg-pitch-ink font-title tracking-[0.2em] text-white/60">
+              LOADING TROPHIES…
+            </div>
+          }
+        >
+          <TrophiesExperience onBack={backFromTrophies} />
         </Suspense>
       )}
     </div>

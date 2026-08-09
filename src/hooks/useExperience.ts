@@ -64,6 +64,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
   }, [capability.isDesktop, stopAR])
 
   const [presidentsReturn, setPresidentsReturn] = useState<AppPhase>('fallback')
+  const [trophiesReturn, setTrophiesReturn] = useState<AppPhase>('fallback')
 
   const openFallback = useCallback(() => {
     stopAR()
@@ -90,6 +91,25 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setPhase(presidentsReturn === 'presidents' ? 'fallback' : presidentsReturn)
     setExploreSection('history')
   }, [presidentsReturn])
+
+  const openTrophies = useCallback(() => {
+    setTrophiesReturn(phase === 'ar' || phase === 'fallback' ? phase : 'fallback')
+    engineRef.current?.stop()
+    engineRef.current = null
+    setExploreSection(null)
+    setAiOpen(false)
+    setPhase('trophies')
+  }, [phase])
+
+  const backFromTrophies = useCallback(() => {
+    if (trophiesReturn === 'ar') {
+      setPhase('fallback')
+      setExploreSection('trophies')
+      return
+    }
+    setPhase(trophiesReturn === 'trophies' ? 'fallback' : trophiesReturn)
+    setExploreSection('trophies')
+  }, [trophiesReturn])
 
   const startAR = useCallback(async () => {
     if (!capability.hasGetUserMedia || !capability.hasWebGL) {
@@ -197,6 +217,8 @@ export function useExperience(options: UseExperienceOptions = {}) {
     openFallback,
     openPresidents,
     backFromPresidents,
+    openTrophies,
+    backFromTrophies,
     stopAR,
   }
 }

@@ -3,12 +3,14 @@ import { t } from '@/i18n'
 interface FallbackExperienceProps {
   onExplore: (section: 'history' | 'trophies' | 'legends' | 'future') => void
   onOpenPresidents: () => void
+  onOpenTrophies: () => void
   onBack: () => void
 }
 
 export function FallbackExperience({
   onExplore,
   onOpenPresidents,
+  onOpenTrophies,
   onBack,
 }: FallbackExperienceProps) {
   const copy = t()
@@ -46,6 +48,10 @@ export function FallbackExperience({
               onClick={() => {
                 if (item.id === 'presidents') {
                   onOpenPresidents()
+                  return
+                }
+                if (item.id === 'trophies') {
+                  onOpenTrophies()
                   return
                 }
                 onExplore(item.id)

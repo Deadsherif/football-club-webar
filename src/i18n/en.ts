@@ -76,6 +76,22 @@ export const en = {
   presidentsNext: 'NEXT',
   presidentsHint: 'TAP A FLOATING CARD TO EXPLORE',
   presidentsNavigate: 'DRAG TO LOOK AROUND · PINCH TO ZOOM',
+
+  trophiesEnter: 'THE TROPHY CABINET',
+  trophiesEnterHint: 'Enter the stadium of champions',
+  trophiesBack: 'BACK',
+  trophiesCabinet: 'THE TROPHIES',
+  trophiesCentury: 'A CENTURY OF GLORY',
+  trophiesExplore: 'EXPLORE THE CABINET',
+  trophiesEntering: 'ENTERING THE STADIUM…',
+  trophiesOf: 'AL AHLY TROPHY',
+  trophiesSeasons: 'SEASONS',
+  trophiesShowMore: 'SHOW MORE DETAIL',
+  trophiesShowLess: 'SHOW LESS',
+  trophiesPrev: 'PREVIOUS',
+  trophiesNext: 'NEXT',
+  trophiesHint: 'TAP A TROPHY TO EXPLORE',
+  trophiesNavigate: 'DRAG TO LOOK AROUND · PINCH TO ZOOM',
 } as const
 
 export type EnKey = keyof typeof en

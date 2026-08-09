@@ -8,6 +8,7 @@ export type AppPhase =
   | 'fallback'
   | 'desktop'
   | 'presidents'
+  | 'trophies'
 
 export type CameraErrorKind =
   | 'denied'

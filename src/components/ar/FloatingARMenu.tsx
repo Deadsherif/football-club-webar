@@ -6,20 +6,23 @@ import { analytics } from '@/services/analyticsService'
 interface FloatingARMenuProps {
   onSelect: (section: Exclude<ExploreSection, null>) => void
   onOpenPresidents: () => void
+  onOpenTrophies: () => void
 }
 
 export function FloatingARMenu({
   onSelect,
   onOpenPresidents,
+  onOpenTrophies,
 }: FloatingARMenuProps) {
   const copy = t()
   const items: Array<
     | { id: Exclude<ExploreSection, null>; label: string }
     | { id: 'presidents'; label: string }
+    | { id: 'trophies-experience'; label: string }
   > = [
     { id: 'presidents', label: copy.menuPresidents },
     { id: 'history', label: copy.menuHistory },
-    { id: 'trophies', label: copy.menuTrophies },
+    { id: 'trophies-experience', label: copy.menuTrophies },
     { id: 'legends', label: copy.menuLegends },
     { id: 'future', label: copy.menuFuture },
   ]
@@ -35,6 +38,10 @@ export function FloatingARMenu({
               void audio.play('ui')
               if (item.id === 'presidents') {
                 onOpenPresidents()
+                return
+              }
+              if (item.id === 'trophies-experience') {
+                onOpenTrophies()
                 return
               }
               analytics.sectionOpened(item.id)

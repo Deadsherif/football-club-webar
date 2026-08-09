@@ -11,12 +11,14 @@ interface ExplorePanelProps {
   section: Exclude<ExploreSection, null>
   onClose: () => void
   onEnterPresidents?: () => void
+  onEnterTrophies?: () => void
 }
 
 export function ExplorePanel({
   section,
   onClose,
   onEnterPresidents,
+  onEnterTrophies,
 }: ExplorePanelProps) {
   const copy = t()
   const [selectedTrophy, setSelectedTrophy] = useState<string | null>(null)
@@ -88,7 +90,23 @@ export function ExplorePanel({
           )}
 
           {section === 'trophies' && (
-            <div className="space-y-3">
+            <div className="space-y-3" dir="rtl">
+              {onEnterTrophies && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void audio.play('ui')
+                    onEnterTrophies()
+                  }}
+                  className="w-full rounded-2xl border border-pitch-gold/40 bg-gradient-to-br from-ahly-red/30 to-black/40 px-4 py-5 text-start"
+                >
+                  <p className="font-title text-sm tracking-[0.22em] text-pitch-gold">
+                    {copy.trophiesEnter}
+                  </p>
+                  <p className="mt-2 text-xs text-white/65">{copy.trophiesEnterHint}</p>
+                </button>
+              )}
+
               {trophies.map((trophy) => {
                 const active = selectedTrophy === trophy.id
                 return (
@@ -105,13 +123,13 @@ export function ExplorePanel({
                         : 'border-white/10 bg-white/5'
                     }`}
                   >
-                    <p className="text-sm font-semibold text-white">{trophy.name}</p>
+                    <p className="text-sm font-semibold text-white">{trophy.nameAr}</p>
                     <p className="mt-1 text-[11px] tracking-[0.12em] text-white/45">
-                      {trophy.competition} · {trophy.year}
+                      {trophy.categoryAr} · {trophy.officialTitles}
                     </p>
                     {active && (
                       <p className="mt-2 text-xs leading-relaxed text-white/65">
-                        {trophy.description}
+                        {trophy.summaryAr}
                       </p>
                     )}
                   </button>

@@ -12,6 +12,7 @@ interface ARViewportProps {
   exploreSection: ExploreSection
   onSelectSection: (section: Exclude<ExploreSection, null>) => void
   onOpenPresidents: () => void
+  onOpenTrophies: () => void
   onOpenAI: () => void
   onExit: () => void
   showOverlay?: boolean
@@ -24,6 +25,7 @@ export function ARViewport({
   exploreSection,
   onSelectSection,
   onOpenPresidents,
+  onOpenTrophies,
   onOpenAI,
   onExit,
   showOverlay = true,
@@ -62,6 +64,7 @@ export function ARViewport({
               <FloatingARMenu
                 onSelect={onSelectSection}
                 onOpenPresidents={onOpenPresidents}
+                onOpenTrophies={onOpenTrophies}
               />
               <AskAlAhlyButton onClick={onOpenAI} />
             </>

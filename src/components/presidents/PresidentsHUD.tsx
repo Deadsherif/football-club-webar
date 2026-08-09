@@ -178,9 +178,10 @@ export function PresidentsHUD({
       )}
 
       {phase === 'explore' && !selected && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-20 text-center text-[10px] tracking-[0.22em] text-white/40">
-          {copy.presidentsHint}
-        </p>
+        <div className="pointer-events-none absolute inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-20 space-y-1 px-4 text-center text-[10px] tracking-[0.22em] text-white/40">
+          <p>{copy.presidentsHint}</p>
+          <p className="text-white/55">{copy.presidentsNavigate}</p>
+        </div>
       )}
     </>
   )

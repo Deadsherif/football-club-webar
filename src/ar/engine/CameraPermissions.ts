@@ -1,9 +1,14 @@
-import type { CameraErrorKind, CameraPermissionResult } from '@/types/ar'
-
 /**
- * Camera access helpers for mobile Safari / Chrome.
- * MindAR also requests the stream; we probe first for clearer UX errors.
+ * Soft permission check — does NOT open the camera.
+ * Opening then stopping a probe stream often leaves the LED on
+ * and can race MindAR's own getUserMedia.
  */
+export type CameraErrorKind = 'denied' | 'unavailable' | 'insecure' | 'unknown'
+
+export type CameraPermissionResult =
+  | { ok: true }
+  | { ok: false; error: CameraErrorKind; message: string }
+
 export async function requestCameraPermission(): Promise<CameraPermissionResult> {
   if (typeof window === 'undefined') {
     return { ok: false, error: 'unavailable', message: 'No window' }
@@ -25,29 +30,26 @@ export async function requestCameraPermission(): Promise<CameraPermissionResult>
     }
   }
 
-  let stream: MediaStream | null = null
-
+  // Permissions API when available (Chrome). Safari often lacks camera permission query.
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    })
-
-    return { ok: true }
-  } catch (err) {
-    return {
-      ok: false,
-      error: classifyCameraError(err),
-      message: err instanceof Error ? err.message : String(err),
+    const permissions = navigator.permissions
+    if (permissions?.query) {
+      const status = await permissions.query({
+        name: 'camera' as PermissionName,
+      })
+      if (status.state === 'denied') {
+        return {
+          ok: false,
+          error: 'denied',
+          message: 'Camera permission is denied.',
+        }
+      }
     }
-  } finally {
-    // Release the probe stream; MindAR will open its own.
-    stream?.getTracks().forEach((track) => track.stop())
+  } catch {
+    // Unsupported permission name — MindAR will request on start.
   }
+
+  return { ok: true }
 }
 
 function classifyCameraError(err: unknown): CameraErrorKind {
@@ -74,4 +76,8 @@ function classifyCameraError(err: unknown): CameraErrorKind {
   }
 
   return 'unknown'
+}
+
+export function classifyMindARCameraError(err: unknown): CameraErrorKind {
+  return classifyCameraError(err)
 }

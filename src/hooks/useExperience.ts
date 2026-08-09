@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { requestCameraPermission } from '@/ar/engine/CameraPermissions'
+import {
+  classifyMindARCameraError,
+  requestCameraPermission,
+} from '@/ar/engine/CameraPermissions'
 import { SCENES, DEFAULT_SCENE_ID } from '@/config/scenes'
 import type {
   AppPhase,
@@ -59,12 +62,6 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setLoadProgress(0)
     setPhase(capability.isDesktop ? 'desktop' : 'landing')
   }, [capability.isDesktop, stopAR])
-
-  const startIntro = useCallback(() => {
-    void audio.unlock()
-    analytics.experienceStarted()
-    setPhase('intro')
-  }, [])
 
   const [presidentsReturn, setPresidentsReturn] = useState<AppPhase>('fallback')
 
@@ -143,11 +140,13 @@ export function useExperience(options: UseExperienceOptions = {}) {
         arScene,
         onTrackingChange: setTrackingState,
         onCinematicPhase: (phaseName) => {
-          setCinematicPhase(phaseName)
-          if (phaseName === 'complete') analytics.experienceCompleted()
+          // Once unlocked by crest scan, stay unlocked (ignore idle on target lost).
+          setCinematicPhase((prev) =>
+            prev === 'complete' && phaseName !== 'complete' ? prev : phaseName,
+          )
         },
-        onError: () => {
-          setCameraError('unknown')
+        onError: (err) => {
+          setCameraError(classifyMindARCameraError(err))
           setPhase('camera-error')
         },
       })
@@ -156,12 +155,19 @@ export function useExperience(options: UseExperienceOptions = {}) {
       await engine.start()
       setLoadProgress(1)
       setPhase('ar')
-    } catch {
+    } catch (err) {
       engineRef.current = null
-      setCameraError('unknown')
+      setCameraError(classifyMindARCameraError(err))
       setPhase('camera-error')
     }
   }, [capability.hasGetUserMedia, capability.hasWebGL, sceneId, stopAR])
+
+  const startExperience = useCallback(() => {
+    void audio.unlock()
+    analytics.experienceStarted()
+    // One tap → camera. The experience begins when the Al Ahly crest is scanned.
+    void startAR()
+  }, [startAR])
 
   useEffect(() => {
     return () => {
@@ -185,7 +191,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     cameraError,
     capability,
     sceneDef: SCENES[sceneId],
-    startIntro,
+    startExperience,
     startAR,
     goLanding,
     openFallback,

@@ -2,8 +2,13 @@ import * as THREE from 'three'
 import { presidents } from '@/data/presidents'
 import { PresidentCard } from '@/ar/presidents/PresidentCard'
 import { buildCardFormation } from '@/ar/presidents/cardFormation'
-import { buildProceduralStadium } from '@/ar/effects/StadiumBuilder'
+import {
+  buildProceduralStadium,
+  prepareStadiumModel,
+} from '@/ar/effects/StadiumBuilder'
 import { StadiumLights } from '@/ar/effects/StadiumLights'
+import { assetLoader } from '@/ar/assets/AssetLoader'
+import { CLUB_CREST_SCENE } from '@/config/scenes'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
 
 /**
@@ -13,30 +18,47 @@ export class PresidentsWorld {
   readonly root = new THREE.Group()
   readonly cards: PresidentCard[] = []
   readonly lights = new StadiumLights()
+  private readonly cardRoot = new THREE.Group()
   private particles: THREE.Points | null = null
   private introDone = false
   private revealCount = 0
+  private cardsBaseHeight = 0
 
   constructor() {
     this.root.name = 'PresidentsWorld'
   }
 
   async setup(): Promise<void> {
-    const stadium = buildProceduralStadium()
-    stadium.scale.setScalar(1.35)
-    stadium.position.y = 0
+    const stadium = await this.loadStadium()
     this.root.add(stadium)
+
+    // Cards float above the imported stadium instead of clipping into its stands.
+    this.cardRoot.name = 'FloatingPresidentCards'
+    this.cardRoot.position.y = this.cardsBaseHeight
+    this.root.add(this.cardRoot)
 
     this.lights.group.position.set(0, 0, 0)
     this.root.add(this.lights.group)
     this.lights.setIntensity(0)
 
-    const ambient = new THREE.AmbientLight(0xffe8e0, 0.25)
+    // The imported GLB uses physically lit materials and needs broader light
+    // coverage than the old miniature procedural stadium.
+    const ambient = new THREE.AmbientLight(0xffead2, 1.35)
     ambient.name = 'PresidentsAmbient'
     this.root.add(ambient)
 
-    const redWash = new THREE.PointLight(0xe30613, 0.35, 12, 2)
-    redWash.position.set(0, 2.2, 0)
+    const key = new THREE.DirectionalLight(0xfff4dc, 2.6)
+    key.name = 'PresidentsKeyLight'
+    key.position.set(3.5, 7, 4.5)
+    this.root.add(key)
+
+    const fill = new THREE.DirectionalLight(0xb8cffd, 1.15)
+    fill.name = 'PresidentsFillLight'
+    fill.position.set(-4, 4, -3)
+    this.root.add(fill)
+
+    const redWash = new THREE.PointLight(0xe30613, 1.4, 14, 2)
+    redWash.position.set(0, 3.2, 0)
     this.root.add(redWash)
 
     const hemi = new THREE.HemisphereLight(0x6a7a9a, 0x1a0808, 0.35)
@@ -57,7 +79,7 @@ export class PresidentsWorld {
       card.group.visible = false
       card.group.scale.setScalar(0.01)
       this.cards.push(card)
-      this.root.add(card.group)
+      this.cardRoot.add(card.group)
     }
   }
 
@@ -79,6 +101,10 @@ export class PresidentsWorld {
 
   get isIntroDone(): boolean {
     return this.introDone
+  }
+
+  get floatingCardAltitude(): number {
+    return this.cardsBaseHeight
   }
 
   update(time: number, delta: number): void {
@@ -164,5 +190,24 @@ export class PresidentsWorld {
     const points = new THREE.Points(geo, mat)
     points.name = 'StadiumDust'
     return points
+  }
+
+  private async loadStadium(): Promise<THREE.Object3D> {
+    try {
+      const stadium = await assetLoader.loadGLB(CLUB_CREST_SCENE.modelSrc)
+      // Fit the imported stadium around the card formation, centered at ground level.
+      prepareStadiumModel(stadium, 7.4)
+      const bounds = new THREE.Box3().setFromObject(stadium)
+      this.cardsBaseHeight = bounds.max.y + 0.55
+      stadium.name = 'ImportedStadium'
+      return stadium
+    } catch {
+      // Retain a usable experience if a large mobile download fails.
+      const fallback = buildProceduralStadium()
+      fallback.scale.setScalar(1.35)
+      fallback.name = 'ProceduralStadiumFallback'
+      this.cardsBaseHeight = 0.45
+      return fallback
+    }
   }
 }

@@ -1,7 +1,6 @@
 import type { RefObject } from 'react'
 import type { CinematicPhase, ExploreSection, TrackingState } from '@/types/ar'
 import { ScannerOverlay } from '@/components/ar/ScannerOverlay'
-import { CinematicTitles } from '@/components/ar/CinematicTitles'
 import { FloatingARMenu } from '@/components/ar/FloatingARMenu'
 import { AskAlAhlyButton } from '@/components/ar/AskAlAhlyButton'
 import { t } from '@/i18n'
@@ -12,6 +11,7 @@ interface ARViewportProps {
   cinematicPhase: CinematicPhase
   exploreSection: ExploreSection
   onSelectSection: (section: Exclude<ExploreSection, null>) => void
+  onOpenPresidents: () => void
   onOpenAI: () => void
   onExit: () => void
   showOverlay?: boolean
@@ -23,46 +23,46 @@ export function ARViewport({
   cinematicPhase,
   exploreSection,
   onSelectSection,
+  onOpenPresidents,
   onOpenAI,
   onExit,
   showOverlay = true,
 }: ARViewportProps) {
   const copy = t()
-  const showMenu = cinematicPhase === 'complete' && trackingState !== 'searching'
-  const inCinematic =
-    cinematicPhase !== 'idle' &&
-    cinematicPhase !== 'complete' &&
-    trackingState === 'tracking'
+  const unlocked = cinematicPhase === 'complete'
+  const showMenu = unlocked
+  const searching = cinematicPhase === 'idle'
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-black">
-      <div ref={containerRef} className="absolute inset-0 h-full w-full" />
+      {/* isolation keeps MindAR's video (z-index -2) from falling behind bg-black */}
+      <div
+        ref={containerRef}
+        className="mindar-container absolute inset-0 z-0 h-full w-full overflow-hidden"
+      />
 
       {showOverlay && (
         <>
           <div
-            className={`letterbox letterbox-top ${inCinematic || cinematicPhase === 'title' || cinematicPhase === 'legacy' ? 'letterbox-on' : ''}`}
-          />
-          <div
-            className={`letterbox letterbox-bottom ${inCinematic || cinematicPhase === 'title' || cinematicPhase === 'legacy' ? 'letterbox-on' : ''}`}
-          />
-
-          <div
-            className={`pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(0,0,0,0.55)_100%)] transition-opacity duration-700 ${
-              inCinematic ? 'opacity-100' : 'opacity-40'
+            className={`pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,transparent_48%,rgba(0,0,0,0.45)_100%)] transition-opacity duration-700 ${
+              searching ? 'opacity-25' : 'opacity-35'
             }`}
           />
 
-          {(cinematicPhase === 'idle' || cinematicPhase === 'glow') &&
-            trackingState !== 'tracking' && (
-              <ScannerOverlay trackingState={trackingState} />
-            )}
-
-          <CinematicTitles phase={cinematicPhase} />
+          {searching && <ScannerOverlay trackingState={trackingState} />}
 
           {showMenu && !exploreSection && (
             <>
-              <FloatingARMenu onSelect={onSelectSection} />
+              <div className="pointer-events-none absolute inset-x-0 top-[max(4.5rem,env(safe-area-inset-top)+3.5rem)] z-20 px-6 text-center">
+                <p className="font-title text-lg tracking-[0.2em] text-white">
+                  {copy.fallbackTitle}
+                </p>
+                <p className="mt-2 text-sm text-white/60">{copy.fallbackBody}</p>
+              </div>
+              <FloatingARMenu
+                onSelect={onSelectSection}
+                onOpenPresidents={onOpenPresidents}
+              />
               <AskAlAhlyButton onClick={onOpenAI} />
             </>
           )}

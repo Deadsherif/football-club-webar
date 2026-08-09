@@ -94,6 +94,15 @@ export class MindAREngine {
       throw error
     }
 
+    // MindAR sets video z-index to -2, which can paint behind the parent's
+    // opaque background and look like "LED on, black screen".
+    this.fixVideoLayer()
+    try {
+      ;(mindar as { resize?: () => void }).resize?.()
+    } catch {
+      // optional
+    }
+
     this.running = true
     this.lastFrameTime = performance.now()
 
@@ -103,6 +112,28 @@ export class MindAREngine {
       this.lastFrameTime = now
       this.arScene.update(delta)
       renderer.render(scene, camera)
+    })
+  }
+
+  /** Keep camera feed visible above container backgrounds. */
+  private fixVideoLayer(): void {
+    const video = this.container.querySelector('video')
+    if (video) {
+      video.style.zIndex = '0'
+      video.style.objectFit = 'cover'
+      video.style.width = '100%'
+      video.style.height = '100%'
+      video.muted = true
+      video.setAttribute('playsinline', '')
+      video.setAttribute('webkit-playsinline', '')
+      void video.play().catch(() => {
+        // Autoplay may need a gesture; stream is still attached.
+      })
+    }
+
+    this.container.querySelectorAll('canvas').forEach((canvas, index) => {
+      canvas.style.zIndex = String(1 + index)
+      canvas.style.pointerEvents = 'none'
     })
   }
 

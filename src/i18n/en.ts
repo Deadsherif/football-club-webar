@@ -2,9 +2,9 @@
 export const en = {
   brand: 'AL AHLY',
   brandTagline: 'MORE THAN A CLUB',
-  landingSubtitle: 'Experience the legacy in a new dimension.',
-  startExperience: 'START EXPERIENCE',
-  immersiveHint: 'An immersive AR experience',
+  landingSubtitle: 'Point your camera at the Al Ahly crest to begin.',
+  startExperience: 'SCAN CREST',
+  immersiveHint: 'The experience starts when the logo is detected',
 
   journeyTitle: 'YOUR JOURNEY STARTS HERE',
   journeyHint: 'Point your camera at the Al Ahly crest.',
@@ -12,11 +12,11 @@ export const en = {
   back: 'BACK',
 
   preparing: 'Preparing experience…',
-  loadingAssets: 'Loading the stadium',
+  loadingAssets: 'Loading experience',
   requestingCamera: 'Requesting camera access',
 
-  searching: 'Searching for the crest…',
-  crestDetected: 'CREST DETECTED',
+  searching: 'Point at the Al Ahly crest…',
+  crestDetected: 'AL AHLY CREST DETECTED',
   targetLost: 'Crest lost — find it again',
   exitAr: 'EXIT',
 
@@ -26,6 +26,7 @@ export const en = {
   twelfthPlayerSub: 'Every generation leaves a mark.',
 
   menuHistory: 'HISTORY',
+  menuPresidents: 'PRESIDENTS',
   menuTrophies: 'TROPHIES',
   menuLegends: 'LEGENDS',
   menuFuture: 'FUTURE',
@@ -74,6 +75,7 @@ export const en = {
   presidentsPrev: 'PREVIOUS',
   presidentsNext: 'NEXT',
   presidentsHint: 'TAP A FLOATING CARD TO EXPLORE',
+  presidentsNavigate: 'DRAG TO LOOK AROUND · PINCH TO ZOOM',
 } as const
 
 export type EnKey = keyof typeof en

@@ -2,12 +2,18 @@ import { t } from '@/i18n'
 
 interface FallbackExperienceProps {
   onExplore: (section: 'history' | 'trophies' | 'legends' | 'future') => void
+  onOpenPresidents: () => void
   onBack: () => void
 }
 
-export function FallbackExperience({ onExplore, onBack }: FallbackExperienceProps) {
+export function FallbackExperience({
+  onExplore,
+  onOpenPresidents,
+  onBack,
+}: FallbackExperienceProps) {
   const copy = t()
   const items = [
+    { id: 'presidents' as const, label: copy.menuPresidents },
     { id: 'history' as const, label: copy.menuHistory },
     { id: 'trophies' as const, label: copy.menuTrophies },
     { id: 'legends' as const, label: copy.menuLegends },
@@ -37,7 +43,13 @@ export function FallbackExperience({ onExplore, onBack }: FallbackExperienceProp
             <button
               key={item.id}
               type="button"
-              onClick={() => onExplore(item.id)}
+              onClick={() => {
+                if (item.id === 'presidents') {
+                  onOpenPresidents()
+                  return
+                }
+                onExplore(item.id)
+              }}
               className="rounded-2xl border border-white/12 bg-white/5 px-4 py-6 text-xs font-semibold tracking-[0.18em] text-white backdrop-blur-md transition active:scale-[0.98]"
             >
               {item.label}

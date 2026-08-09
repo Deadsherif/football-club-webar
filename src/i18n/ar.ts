@@ -2,9 +2,9 @@
 export const ar = {
   brand: 'الأهلي',
   brandTagline: 'أكثر من نادٍ',
-  landingSubtitle: 'عش الإرث في بُعد جديد.',
-  startExperience: 'ابدأ التجربة',
-  immersiveHint: 'تجربة واقع معزز غامرة',
+  landingSubtitle: 'وجّه الكاميرا نحو شعار الأهلي للبدء.',
+  startExperience: 'امسح الشعار',
+  immersiveHint: 'تبدأ التجربة عند التعرّف على الشعار',
 
   journeyTitle: 'رحلتك تبدأ من هنا',
   journeyHint: 'وجّه الكاميرا نحو شعار الأهلي.',
@@ -12,11 +12,11 @@ export const ar = {
   back: 'رجوع',
 
   preparing: 'جارٍ التحضير…',
-  loadingAssets: 'تحميل الملعب',
+  loadingAssets: 'تحميل التجربة',
   requestingCamera: 'طلب إذن الكاميرا',
 
-  searching: 'جارٍ البحث عن الشعار…',
-  crestDetected: 'تم اكتشاف الشعار',
+  searching: 'وجّه الكاميرا نحو شعار الأهلي…',
+  crestDetected: 'تم اكتشاف شعار الأهلي',
   targetLost: 'ابحث عن الشعار مجددًا',
   exitAr: 'خروج',
 
@@ -26,6 +26,7 @@ export const ar = {
   twelfthPlayerSub: 'كل جيل يترك بصمته.',
 
   menuHistory: 'التاريخ',
+  menuPresidents: 'الرؤساء',
   menuTrophies: 'البطولات',
   menuLegends: 'الأساطير',
   menuFuture: 'المستقبل',
@@ -72,4 +73,5 @@ export const ar = {
   presidentsPrev: 'السابق',
   presidentsNext: 'التالي',
   presidentsHint: 'المس بطاقة عائمة للاستكشاف',
+  presidentsNavigate: 'اسحب للتجول · قرّب بإصبعيك',
 } as const

@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react'
 import { LandingScreen } from '@/components/screens/LandingScreen'
-import { IntroScreen } from '@/components/screens/IntroScreen'
 import { LoadingScreen } from '@/components/screens/LoadingScreen'
 import { CameraErrorScreen } from '@/components/screens/CameraErrorScreen'
 import { DesktopGate } from '@/components/screens/DesktopGate'
@@ -33,7 +32,7 @@ export default function App() {
     setAiOpen,
     cameraError,
     sceneDef,
-    startIntro,
+    startExperience,
     startAR,
     goLanding,
     openFallback,
@@ -50,21 +49,13 @@ export default function App() {
       {phase === 'desktop' && (
         <DesktopGate
           url={pageUrl}
-          onPreviewPresidents={openPresidents}
           onPreviewInteractive={openFallback}
+          onStartAR={startExperience}
         />
       )}
 
       {phase === 'landing' && (
-        <LandingScreen onStart={startIntro} crestSrc={crestSrc} />
-      )}
-
-      {phase === 'intro' && (
-        <IntroScreen
-          crestSrc={crestSrc}
-          onOpenCamera={startAR}
-          onBack={goLanding}
-        />
+        <LandingScreen onStart={startExperience} crestSrc={crestSrc} />
       )}
 
       {showArShell && (
@@ -74,6 +65,7 @@ export default function App() {
           cinematicPhase={cinematicPhase}
           exploreSection={exploreSection}
           onSelectSection={setExploreSection}
+          onOpenPresidents={openPresidents}
           onOpenAI={() => setAiOpen(true)}
           onExit={goLanding}
           showOverlay={phase === 'ar'}
@@ -114,6 +106,7 @@ export default function App() {
       {phase === 'fallback' && !exploreSection && (
         <FallbackExperience
           onBack={goLanding}
+          onOpenPresidents={openPresidents}
           onExplore={(section) => {
             analytics.sectionOpened(section)
             setExploreSection(section)

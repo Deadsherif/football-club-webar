@@ -2,14 +2,14 @@ import { t } from '@/i18n'
 
 interface DesktopGateProps {
   url: string
-  onPreviewPresidents?: () => void
   onPreviewInteractive?: () => void
+  onStartAR?: () => void
 }
 
 export function DesktopGate({
   url,
-  onPreviewPresidents,
   onPreviewInteractive,
+  onStartAR,
 }: DesktopGateProps) {
   const copy = t()
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`
@@ -37,13 +37,13 @@ export function DesktopGate({
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
-          {onPreviewPresidents && (
+          {onStartAR && (
             <button
               type="button"
-              onClick={onPreviewPresidents}
+              onClick={onStartAR}
               className="min-h-12 rounded-full bg-ahly-red px-6 text-xs font-bold tracking-[0.18em] text-white"
             >
-              {copy.presidentsEnter}
+              {copy.startExperience}
             </button>
           )}
           {onPreviewInteractive && (

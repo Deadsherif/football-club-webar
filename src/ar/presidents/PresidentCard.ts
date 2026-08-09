@@ -14,7 +14,8 @@ export interface CardAnimState {
 }
 
 /**
- * Holographic-style football president card (front + back planes).
+ * Floating president card. Portraits use unlit materials so stadium lights
+ * cannot wash out or blur their source images.
  */
 export class PresidentCard {
   readonly group = new THREE.Group()
@@ -42,41 +43,31 @@ export class PresidentCard {
     this.group.userData.presidentId = president.id
 
     const geo = new THREE.PlaneGeometry(CARD_W, CARD_H)
-    const frontMat = new THREE.MeshStandardMaterial({
+    const frontMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      metalness: 0.35,
-      roughness: 0.35,
-      emissive: 0x220508,
-      emissiveIntensity: 0.25,
       side: THREE.FrontSide,
     })
-    const backMat = new THREE.MeshStandardMaterial({
+    const backMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      metalness: 0.4,
-      roughness: 0.3,
-      emissive: 0x1a0800,
-      emissiveIntensity: 0.2,
       side: THREE.FrontSide,
     })
 
     this.meshFront = new THREE.Mesh(geo, frontMat)
-    this.meshFront.position.z = CARD_D / 2
+    this.meshFront.position.z = CARD_D / 2 + 0.002
     this.meshFront.userData.presidentId = president.id
 
     this.meshBack = new THREE.Mesh(geo.clone(), backMat)
     this.meshBack.rotation.y = Math.PI
-    this.meshBack.position.z = -CARD_D / 2
+    this.meshBack.position.z = -CARD_D / 2 - 0.002
     this.meshBack.userData.presidentId = president.id
 
-    // Thin edge / depth slab
-    const edge = new THREE.Mesh(
-      new THREE.BoxGeometry(CARD_W * 0.98, CARD_H * 0.98, CARD_D),
-      new THREE.MeshStandardMaterial({
-        color: 0xd4af37,
-        metalness: 0.7,
-        roughness: 0.25,
-        emissive: 0x4a3008,
-        emissiveIntensity: 0.15,
+    // A wire frame keeps depth without putting an opaque box over the portrait.
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(CARD_W, CARD_H, CARD_D)),
+      new THREE.LineBasicMaterial({
+        color: president.endYear === null ? 0xe30613 : 0xd4af37,
+        transparent: true,
+        opacity: 0.85,
       }),
     )
     edge.userData.presidentId = president.id
@@ -86,7 +77,7 @@ export class PresidentCard {
       new THREE.MeshBasicMaterial({
         color: president.endYear === null ? 0xe30613 : 0xd4af37,
         transparent: true,
-        opacity: 0.12,
+        opacity: 0.025,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
@@ -151,20 +142,16 @@ export class PresidentCard {
 
     this.group.scale.setScalar(scale)
 
-    const frontMat = this.meshFront.material as THREE.MeshStandardMaterial
-    const backMat = this.meshBack.material as THREE.MeshStandardMaterial
+    const frontMat = this.meshFront.material as THREE.MeshBasicMaterial
+    const backMat = this.meshBack.material as THREE.MeshBasicMaterial
     const glowMat = this.glow.material as THREE.MeshBasicMaterial
 
-    const emit =
-      (0.2 + this.hover * 0.45 + this.select * 0.7) * this.brightness
-    frontMat.emissiveIntensity = emit
-    backMat.emissiveIntensity = emit * 0.85
     frontMat.color.setScalar(this.brightness)
     backMat.color.setScalar(this.brightness)
 
     const isCurrent = this.president.endYear === null
     glowMat.opacity =
-      (isCurrent ? 0.22 : 0.1) + this.hover * 0.2 + this.select * 0.35
+      (isCurrent ? 0.055 : 0.025) + this.hover * 0.04 + this.select * 0.06
   }
 
   dispose(): void {
@@ -193,10 +180,10 @@ export class PresidentCard {
     }
     this.frontTexture = front
     this.backTexture = back
-    ;(this.meshFront.material as THREE.MeshStandardMaterial).map = front
-    ;(this.meshFront.material as THREE.MeshStandardMaterial).needsUpdate = true
-    ;(this.meshBack.material as THREE.MeshStandardMaterial).map = back
-    ;(this.meshBack.material as THREE.MeshStandardMaterial).needsUpdate = true
+    ;(this.meshFront.material as THREE.MeshBasicMaterial).map = front
+    ;(this.meshFront.material as THREE.MeshBasicMaterial).needsUpdate = true
+    ;(this.meshBack.material as THREE.MeshBasicMaterial).map = back
+    ;(this.meshBack.material as THREE.MeshBasicMaterial).needsUpdate = true
   }
 }
 

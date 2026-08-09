@@ -5,11 +5,19 @@ import { analytics } from '@/services/analyticsService'
 
 interface FloatingARMenuProps {
   onSelect: (section: Exclude<ExploreSection, null>) => void
+  onOpenPresidents: () => void
 }
 
-export function FloatingARMenu({ onSelect }: FloatingARMenuProps) {
+export function FloatingARMenu({
+  onSelect,
+  onOpenPresidents,
+}: FloatingARMenuProps) {
   const copy = t()
-  const items: Array<{ id: Exclude<ExploreSection, null>; label: string }> = [
+  const items: Array<
+    | { id: Exclude<ExploreSection, null>; label: string }
+    | { id: 'presidents'; label: string }
+  > = [
+    { id: 'presidents', label: copy.menuPresidents },
     { id: 'history', label: copy.menuHistory },
     { id: 'trophies', label: copy.menuTrophies },
     { id: 'legends', label: copy.menuLegends },
@@ -25,6 +33,10 @@ export function FloatingARMenu({ onSelect }: FloatingARMenuProps) {
             type="button"
             onClick={() => {
               void audio.play('ui')
+              if (item.id === 'presidents') {
+                onOpenPresidents()
+                return
+              }
               analytics.sectionOpened(item.id)
               onSelect(item.id)
             }}

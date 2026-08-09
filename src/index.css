@@ -35,6 +35,32 @@
   }
 }
 
+@layer components {
+  /* MindAR injects video at z-index:-2; isolate so it stays visible. */
+  .mindar-container {
+    isolation: isolate;
+    background: transparent;
+  }
+
+  .mindar-container video {
+    position: absolute !important;
+    inset: 0;
+    z-index: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .mindar-container canvas {
+    position: absolute !important;
+    inset: 0;
+    z-index: 1 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none;
+  }
+}
+
 @layer utilities {
   .bg-pitch {
     background:

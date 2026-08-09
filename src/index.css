@@ -1,0 +1,184 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Oswald', 'Segoe UI', sans-serif;
+  --font-sans: 'Manrope', 'Segoe UI', sans-serif;
+  --font-title: 'Oswald', 'Segoe UI', sans-serif;
+
+  /* Al Ahly palette */
+  --color-pitch-ink: #0a0505;
+  --color-pitch-deep: #1a0808;
+  --color-pitch-mid: #5c0a12;
+  --color-pitch-gold: #d4af37;
+  --color-pitch-lime: #e30613;
+  --color-ahly-red: #e30613;
+  --color-ahly-crimson: #9b0b14;
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply m-0 min-h-dvh overflow-x-hidden bg-pitch-ink font-sans text-white;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  #root {
+    @apply min-h-dvh;
+  }
+
+  button {
+    @apply touch-manipulation;
+  }
+}
+
+@layer utilities {
+  .bg-pitch {
+    background:
+      radial-gradient(ellipse 110% 75% at 50% -5%, rgba(227, 6, 19, 0.35), transparent 55%),
+      radial-gradient(ellipse 80% 50% at 85% 95%, rgba(212, 175, 55, 0.14), transparent 50%),
+      linear-gradient(165deg, var(--color-pitch-deep) 0%, var(--color-pitch-ink) 48%, #050202 100%);
+  }
+
+  .bg-vignette {
+    background: radial-gradient(ellipse at center, transparent 38%, rgba(0, 0, 0, 0.65) 100%);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-title {
+    font-family: var(--font-title);
+  }
+
+  .letterbox {
+    position: absolute;
+    inset-inline: 0;
+    z-index: 25;
+    height: 0;
+    background: #000;
+    transition: height 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .letterbox-top {
+    top: 0;
+  }
+
+  .letterbox-bottom {
+    bottom: 0;
+  }
+
+  .letterbox-on {
+    height: clamp(2.5rem, 9vh, 5.5rem);
+  }
+
+  .title-reveal {
+    transform: translateY(18px) scale(0.96);
+    filter: blur(6px);
+    opacity: 0;
+    transition:
+      transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
+      filter 900ms ease,
+      opacity 700ms ease;
+  }
+
+  .title-reveal-active {
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  .crest-float {
+    animation: crest-float 4.5s ease-in-out infinite;
+  }
+
+  @keyframes crest-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .scan-line {
+    animation: scan-line 2.4s ease-in-out infinite;
+  }
+
+  @keyframes scan-line {
+    0% {
+      top: 12%;
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      top: 88%;
+      opacity: 0;
+    }
+  }
+
+  .scan-corner {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 2px solid rgba(212, 175, 55, 0.85);
+  }
+
+  .scan-corner-tl {
+    top: 0;
+    left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-top-left-radius: 6px;
+  }
+
+  .scan-corner-tr {
+    top: 0;
+    right: 0;
+    border-left: 0;
+    border-bottom: 0;
+    border-top-right-radius: 6px;
+  }
+
+  .scan-corner-bl {
+    bottom: 0;
+    left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom-left-radius: 6px;
+  }
+
+  .scan-corner-br {
+    bottom: 0;
+    right: 0;
+    border-left: 0;
+    border-top: 0;
+    border-bottom-right-radius: 6px;
+  }
+
+  .scan-frame {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    animation: scan-pulse 2.8s ease-in-out infinite;
+  }
+
+  @keyframes scan-pulse {
+    0%,
+    100% {
+      border-color: rgba(212, 175, 55, 0.35);
+    }
+    50% {
+      border-color: rgba(227, 6, 19, 0.65);
+    }
+  }
+}

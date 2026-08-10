@@ -3,6 +3,16 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { TrophiesWorld } from '@/ar/trophies/TrophiesWorld'
 import { audio } from '@/services/audioService'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
+import {
+  getStadiumViewportFit,
+  type StadiumViewportFit,
+} from '@/utils/stadiumViewport'
+import { attachStudioEnvironment } from '@/ar/effects/studioEnvironment'
+import {
+  computeStableCardFraming,
+  holdSelectCamera,
+} from '@/ar/engine/stableSelectCamera'
+import { assetLoader } from '@/ar/assets/AssetLoader'
 
 export type TrophiesPhase =
   | 'boot'
@@ -21,7 +31,8 @@ export interface TrophiesControllerHooks {
 }
 
 /**
- * Free WebGL trophies cabinet (desktop demos + non-AR mobile).
+ * Free WebGL trophies cabinet — same stadium framing as Presidents,
+ * with studio IBL so GLB textures match source files.
  */
 export class TrophiesController {
   private renderer: THREE.WebGLRenderer
@@ -48,6 +59,8 @@ export class TrophiesController {
   private hasUserNavigated = false
   private transitionBannerUntil = 0
   private container: HTMLElement
+  private fit: StadiumViewportFit
+  private disposeEnvironment: (() => void) | null = null
   private onPointerMove: (e: PointerEvent) => void
   private onPointerDown: (e: PointerEvent) => void
   private onResize: () => void
@@ -55,6 +68,7 @@ export class TrophiesController {
   constructor(container: HTMLElement) {
     this.container = container
     const capability = detectDeviceCapability()
+    this.fit = getStadiumViewportFit(container.clientWidth, container.clientHeight)
     this.renderer = new THREE.WebGLRenderer({
       antialias: capability.antialias,
       alpha: false,
@@ -69,15 +83,16 @@ export class TrophiesController {
     container.appendChild(this.renderer.domElement)
 
     this.camera = new THREE.PerspectiveCamera(
-      50,
+      this.fit.fov,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
       40,
     )
     this.camera.position.copy(this.cameraTarget)
 
-    this.scene.fog = new THREE.FogExp2(0x080305, 0.055)
+    this.scene.fog = new THREE.FogExp2(0x080305, 0.04)
     this.scene.add(this.world.root)
+    this.disposeEnvironment = attachStudioEnvironment(this.renderer, this.scene, 1)
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
@@ -86,8 +101,8 @@ export class TrophiesController {
     this.controls.enablePan = false
     this.controls.maxPolarAngle = Math.PI * 0.48
     this.controls.minPolarAngle = Math.PI * 0.16
-    this.controls.minDistance = 1.8
-    this.controls.maxDistance = 8
+    this.controls.minDistance = this.fit.minDistance
+    this.controls.maxDistance = this.fit.maxDistance
     this.controls.target.copy(this.lookTarget)
     this.controls.enabled = false
     this.controls.addEventListener('start', () => {
@@ -105,11 +120,7 @@ export class TrophiesController {
 
   async start(): Promise<void> {
     await this.world.setup()
-    const alt = this.world.floatingTrophyAltitude
-    this.cameraTarget.set(0, alt + 1.2, 4.2)
-    this.lookTarget.set(0, alt + 0.9, 0)
-    this.desiredCam.copy(this.cameraTarget)
-    this.desiredLook.copy(this.lookTarget)
+    this.applyExploreFraming()
     this.camera.position.copy(this.cameraTarget)
     this.controls.target.copy(this.lookTarget)
     this.running = true
@@ -130,8 +141,17 @@ export class TrophiesController {
     this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown)
     this.world.dispose()
     this.controls.dispose()
+    this.disposeEnvironment?.()
+    this.disposeEnvironment = null
     this.renderer.dispose()
+    // Mobile browsers often keep the GL context + heap until forced loss.
+    const gl = this.renderer.getContext()
+    const lose = (gl as WebGLRenderingContext & {
+      getExtension: (name: string) => { loseContext?: () => void } | null
+    }).getExtension('WEBGL_lose_context')
+    lose?.loseContext?.()
     this.renderer.domElement.remove()
+    assetLoader.clearCache()
   }
 
   selectByIndex(index: number): void {
@@ -142,6 +162,7 @@ export class TrophiesController {
     this.selectedIndex = clamped
     this.selectedId = trophy.id
     this.world.setFocus(this.selectedId, null)
+    void this.world.ensureTrophyModel(trophy.id)
     this.focusCameraOn(trophy.id)
     this.hooks.onSelect?.(this.selectedId)
     this.hooks.onLabel?.(trophy.nameAr)
@@ -164,9 +185,7 @@ export class TrophiesController {
     this.selectedId = null
     this.selectedIndex = -1
     this.world.setFocus(null, this.hoveredId)
-    const alt = this.world.floatingTrophyAltitude
-    this.desiredCam.set(0, alt + 1.2, 4.2)
-    this.desiredLook.set(0, alt + 0.9, 0)
+    this.applyExploreFraming()
     this.hooks.onSelect?.(null)
     this.setPhase('explore')
     this.controls.enabled = true
@@ -180,6 +199,15 @@ export class TrophiesController {
     return performance.now() < this.transitionBannerUntil
   }
 
+  private applyExploreFraming(): void {
+    const alt = this.world.floatingTrophyAltitude
+    const distance = this.fit.cameraDistance
+    this.cameraTarget.set(0, alt + this.fit.cameraHeight, distance)
+    this.lookTarget.set(0, alt + this.fit.lookHeight, 0)
+    this.desiredCam.copy(this.cameraTarget)
+    this.desiredLook.copy(this.lookTarget)
+  }
+
   private tick = (): void => {
     if (!this.running) return
     this.raf = requestAnimationFrame(this.tick)
@@ -191,7 +219,15 @@ export class TrophiesController {
     this.world.update(time, delta)
 
     const manualNavigation = this.phase === 'explore' && this.hasUserNavigated
-    if (!manualNavigation) {
+    if (this.selectedId) {
+      holdSelectCamera(
+        this.camera,
+        this.desiredCam,
+        this.lookTarget,
+        this.desiredLook,
+        this.controls.target,
+      )
+    } else if (!manualNavigation) {
       this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * 2.2))
       this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * 2.4))
       this.controls.target.copy(this.lookTarget)
@@ -200,34 +236,39 @@ export class TrophiesController {
     if (this.phase === 'explore' && !this.selectedId) {
       if (!this.hasUserNavigated) {
         this.idleOrbit += delta * 0.12
+        const distance = this.fit.cameraDistance
         this.desiredCam.set(
-          Math.sin(this.idleOrbit) * 4.2,
+          Math.sin(this.idleOrbit) * distance,
           this.world.floatingTrophyAltitude +
-            1.25 +
+            this.fit.cameraHeight +
             Math.sin(this.idleOrbit * 0.5) * 0.15,
-          Math.cos(this.idleOrbit) * 4.2,
+          Math.cos(this.idleOrbit) * distance,
         )
       }
     }
 
-    if (this.controls.enabled) this.controls.update()
-    else this.camera.lookAt(this.lookTarget)
+    if (!this.selectedId) {
+      if (this.controls.enabled) this.controls.update()
+      else this.camera.lookAt(this.lookTarget)
+    }
 
     this.renderer.render(this.scene, this.camera)
   }
 
   private updateIntro(_delta: number): void {
     if (this.phase === 'titles') {
-      if (this.phaseTime > 1.6) {
-        this.setPhase('lights')
-      }
+      if (this.phaseTime > 1.6) this.setPhase('lights')
       return
     }
 
     if (this.phase === 'lights') {
       const t = Math.min(0.4, this.phaseTime / 2.0)
       this.world.setIntroProgress(t)
-      this.desiredCam.set(0, this.world.floatingTrophyAltitude + 1.6, 5.2)
+      this.desiredCam.set(
+        0,
+        this.world.floatingTrophyAltitude + this.fit.cameraHeight + 0.4,
+        this.fit.cameraDistance + 1,
+      )
       if (this.phaseTime > 2.0) this.setPhase('reveal')
       return
     }
@@ -297,18 +338,29 @@ export class TrophiesController {
     if (!obj) return
     obj.group.updateWorldMatrix(true, false)
     const pos = obj.group.getWorldPosition(new THREE.Vector3())
-    const outward = new THREE.Vector3(pos.x, 0, pos.z).normalize()
-    if (outward.lengthSq() < 0.01) outward.set(0, 0, 1)
-    this.desiredLook.copy(pos).add(new THREE.Vector3(0, 0.25, 0))
-    this.desiredCam.copy(pos).add(outward.multiplyScalar(1.55)).setY(pos.y + 0.45)
+    const { cam, look } = computeStableCardFraming(pos, this.fit, 0.25)
+    this.desiredLook.copy(look)
+    this.desiredCam.copy(cam)
     this.controls.enabled = false
+    holdSelectCamera(
+      this.camera,
+      this.desiredCam,
+      this.lookTarget,
+      this.desiredLook,
+      this.controls.target,
+    )
   }
 
   private resize(): void {
     const w = this.container.clientWidth
     const h = Math.max(1, this.container.clientHeight)
+    this.fit = getStadiumViewportFit(w, h)
+    this.camera.fov = this.fit.fov
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
+    this.controls.minDistance = this.fit.minDistance
+    this.controls.maxDistance = this.fit.maxDistance
     this.renderer.setSize(w, h)
+    if (!this.selectedId) this.applyExploreFraming()
   }
 }

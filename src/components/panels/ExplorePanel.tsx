@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { t } from '@/i18n'
 import { historyMilestones } from '@/data/history'
 import { trophies } from '@/data/trophies'
-import { legends } from '@/data/legends'
 import { futureConcepts } from '@/data/future'
+import { boardMembers, redCastleHighlights } from '@/data/boardAndCastle'
+import { redCastleMembers } from '@/data/redCastleMembers'
 import type { ExploreSection } from '@/types/ar'
 import { audio } from '@/services/audioService'
 
@@ -12,6 +13,8 @@ interface ExplorePanelProps {
   onClose: () => void
   onEnterPresidents?: () => void
   onEnterTrophies?: () => void
+  onEnterBoard?: () => void
+  onEnterRedCastle?: () => void
 }
 
 export function ExplorePanel({
@@ -19,6 +22,8 @@ export function ExplorePanel({
   onClose,
   onEnterPresidents,
   onEnterTrophies,
+  onEnterBoard,
+  onEnterRedCastle,
 }: ExplorePanelProps) {
   const copy = t()
   const [selectedTrophy, setSelectedTrophy] = useState<string | null>(null)
@@ -28,15 +33,33 @@ export function ExplorePanel({
       ? copy.historyTitle
       : section === 'trophies'
         ? copy.trophiesTitle
-        : section === 'legends'
-          ? copy.legendsTitle
-          : copy.futureTitle
+        : section === 'board'
+          ? copy.boardTitleAr
+          : section === 'red-castle'
+            ? copy.redCastleTitleAr
+            : copy.futureTitle
+
+  const subtitle =
+    section === 'board'
+      ? copy.boardTitle
+      : section === 'red-castle'
+        ? copy.redCastleTitle
+        : null
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/45 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16 backdrop-blur-[2px]">
       <div className="max-h-[72dvh] w-full max-w-md overflow-hidden rounded-3xl border border-white/12 bg-[#0c0708]/92 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h2 className="font-title text-sm tracking-[0.22em] text-white">{title}</h2>
+          <div>
+            <h2 className="font-title text-sm tracking-[0.18em] text-white">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="mt-1 text-[10px] tracking-[0.16em] text-white/45">
+                {subtitle}
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -138,31 +161,135 @@ export function ExplorePanel({
             </div>
           )}
 
-          {section === 'legends' && (
-            <div className="space-y-3">
-              {legends.map((legend) => (
+          {section === 'board' && (
+            <div className="space-y-4" dir="rtl">
+              {onEnterBoard && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void audio.play('ui')
+                    onEnterBoard()
+                  }}
+                  className="w-full rounded-2xl border border-pitch-gold/40 bg-gradient-to-br from-ahly-red/30 to-black/40 px-4 py-5 text-start"
+                >
+                  <p className="font-title text-sm tracking-[0.22em] text-pitch-gold">
+                    {copy.boardEnter}
+                  </p>
+                  <p className="mt-2 text-xs text-white/65">{copy.boardEnterHint}</p>
+                </button>
+              )}
+
+              <div className="rounded-2xl border border-pitch-gold/30 bg-ahly-red/15 px-4 py-4 text-start">
+                <p className="text-sm font-semibold text-white">{copy.boardTitleAr}</p>
+                <p className="mt-1 text-[11px] tracking-[0.14em] text-white/45">
+                  {copy.boardTitle}
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-white/65">
+                  {copy.boardIntroAr}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-white/45">
+                  {copy.boardIntro}
+                </p>
+              </div>
+
+              {boardMembers.map((member) => (
                 <div
-                  key={legend.id}
-                  className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                  key={member.id}
+                  className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-start"
                 >
                   <img
-                    src={legend.imageSrc}
-                    alt=""
-                    className="h-14 w-14 rounded-xl object-cover"
+                    src={member.portrait}
+                    alt={member.name}
+                    className="h-16 w-12 shrink-0 rounded-lg object-cover object-top"
                   />
-                  <div>
-                    <p className="text-sm font-semibold text-white">{legend.name}</p>
-                    <p className="text-[11px] text-white/45">
-                      {legend.position} · {legend.era}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">
+                      {member.arabicName ?? member.name}
                     </p>
-                    <ul className="mt-2 space-y-1">
-                      {legend.achievements.map((a) => (
-                        <li key={a} className="text-xs text-white/60">
-                          · {a}
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="mt-1 text-[11px] text-white/45">{member.name}</p>
+                    <p className="mt-2 text-xs text-pitch-gold">{member.roleAr}</p>
+                    <p className="mt-1 text-[10px] tracking-[0.12em] text-white/40">
+                      {member.roleEn}
+                    </p>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {section === 'red-castle' && (
+            <div className="space-y-4" dir="rtl">
+              {onEnterRedCastle && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void audio.play('ui')
+                    onEnterRedCastle()
+                  }}
+                  className="w-full rounded-2xl border border-pitch-gold/40 bg-gradient-to-br from-ahly-red/30 to-black/40 px-4 py-5 text-start"
+                >
+                  <p className="font-title text-sm tracking-[0.22em] text-pitch-gold">
+                    {copy.redCastleEnter}
+                  </p>
+                  <p className="mt-2 text-xs text-white/65">
+                    {copy.redCastleEnterHint}
+                  </p>
+                </button>
+              )}
+
+              <div className="rounded-2xl border border-pitch-gold/30 bg-gradient-to-br from-ahly-red/35 to-black/40 px-4 py-5 text-start">
+                <p className="font-title text-base tracking-[0.14em] text-pitch-gold">
+                  {copy.redCastleTitleAr}
+                </p>
+                <p className="mt-1 text-[11px] tracking-[0.16em] text-white/50">
+                  {copy.redCastleTitle}
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-white/70">
+                  {copy.redCastleIntroAr}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-white/45">
+                  {copy.redCastleIntro}
+                </p>
+              </div>
+
+              {redCastleMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-start"
+                >
+                  <img
+                    src={member.portrait}
+                    alt={member.name}
+                    className="h-16 w-12 shrink-0 rounded-lg object-cover object-top"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">
+                      {member.arabicName ?? member.name}
+                    </p>
+                    <p className="mt-1 text-[11px] text-white/45">{member.name}</p>
+                    <p className="mt-2 text-xs text-pitch-gold">{member.roleAr}</p>
+                    <p className="mt-1 text-[10px] tracking-[0.12em] text-white/40">
+                      {member.roleEn}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {redCastleHighlights.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-start"
+                >
+                  <p className="text-sm font-semibold text-white">{item.titleAr}</p>
+                  <p className="mt-1 text-[11px] tracking-[0.14em] text-white/45">
+                    {item.titleEn}
+                  </p>
+                  <p className="mt-3 text-xs leading-relaxed text-white/65">
+                    {item.summaryAr}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-white/40">
+                    {item.summaryEn}
+                  </p>
                 </div>
               ))}
             </div>

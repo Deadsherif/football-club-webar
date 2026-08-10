@@ -9,12 +9,14 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "preview:https": "cross-env VITE_HTTPS=true vite preview",
     "compile:target": "node scripts/compile-target.mjs"
   },
   "dependencies": {
     "mind-ar": "^1.2.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
     "three": "0.159.0"
   },
   "devDependencies": {

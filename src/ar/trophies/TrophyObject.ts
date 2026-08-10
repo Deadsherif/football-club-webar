@@ -1,8 +1,13 @@
 import * as THREE from 'three'
 import type { TrophyDefinition } from '@/data/trophies'
 import { assetLoader } from '@/ar/assets/AssetLoader'
+import { preserveSourceTextures } from '@/ar/effects/studioEnvironment'
+import { disposeObject3D } from '@/ar/trophies/disposeObject3D'
 
 const TARGET_HEIGHT = 0.55
+const _homeWorld = new THREE.Vector3()
+const _camWorld = new THREE.Vector3()
+const _pulled = new THREE.Vector3()
 
 export interface TrophyAnimState {
   basePosition: THREE.Vector3
@@ -12,8 +17,13 @@ export interface TrophyAnimState {
   amplitude: number
 }
 
+export interface TrophyLoadOptions {
+  maxTextureWidth?: number
+}
+
 /**
- * Floating trophy GLB with hover / select / dim states for raycasting.
+ * Floating trophy with a lightweight placeholder until its GLB is requested.
+ * Mobile keeps only a few resident models to avoid tab OOM kills.
  */
 export class TrophyObject {
   readonly group = new THREE.Group()
@@ -25,11 +35,21 @@ export class TrophyObject {
   private targetHover = 0
   private select = 0
   private targetSelect = 0
-  private brightness = 1
+  private dim = 0
+  private targetDim = 0
   private disposed = false
   private modelReady = false
+  private modelRoot: THREE.Object3D | null = null
+  private placeholder: THREE.Group
+  private loadPromise: Promise<void> | null = null
   private baseScale = 1
   private readonly baseColors = new Map<THREE.Material, THREE.Color>()
+  private readonly baseOpacities = new Map<THREE.Material, number>()
+  private readonly baseEnvIntensity = new Map<THREE.Material, number>()
+  private focusCamera: THREE.Camera | null = null
+  private focusScaleBoost = 0.1
+  private focusPull = 0
+  private maxTextureWidth = 2048
 
   constructor(trophy: TrophyDefinition, anim: TrophyAnimState) {
     this.trophy = trophy
@@ -37,7 +57,6 @@ export class TrophyObject {
     this.group.name = `Trophy_${trophy.id}`
     this.group.userData.trophyId = trophy.id
 
-    // Invisible box for reliable raycasting before/while GLB loads.
     this.hitProxy = new THREE.Mesh(
       new THREE.BoxGeometry(0.35, 0.6, 0.35),
       new THREE.MeshBasicMaterial({
@@ -50,10 +69,52 @@ export class TrophyObject {
     this.hitProxy.userData.trophyId = trophy.id
     this.group.add(this.hitProxy)
 
+    this.placeholder = this.createPlaceholder()
+    this.group.add(this.placeholder)
+
     this.group.position.copy(anim.basePosition)
     this.group.rotation.copy(anim.baseRotation)
+    this.baseScale = 1
+    this.modelReady = true
+  }
 
-    void this.loadModel()
+  get hasModel(): boolean {
+    return this.modelRoot !== null
+  }
+
+  get isLoading(): boolean {
+    return this.loadPromise !== null && this.modelRoot === null
+  }
+
+  setLoadOptions(options: TrophyLoadOptions): void {
+    if (typeof options.maxTextureWidth === 'number') {
+      this.maxTextureWidth = options.maxTextureWidth
+    }
+  }
+
+  /** Load the authored GLB once; safe to call repeatedly. */
+  ensureModel(): Promise<void> {
+    if (this.disposed) return Promise.resolve()
+    if (this.modelRoot) return Promise.resolve()
+    if (this.loadPromise) return this.loadPromise
+
+    this.loadPromise = this.loadModel().finally(() => {
+      this.loadPromise = null
+    })
+    return this.loadPromise
+  }
+
+  /** Drop the GLB and restore the placeholder to free memory. */
+  unloadModel(): void {
+    if (!this.modelRoot) return
+    this.group.remove(this.modelRoot)
+    disposeObject3D(this.modelRoot, { textures: true })
+    this.modelRoot = null
+    this.placeholder.visible = true
+    this.baseColors.clear()
+    this.baseOpacities.clear()
+    this.baseEnvIntensity.clear()
+    assetLoader.release(this.trophy.modelSrc)
   }
 
   setHovered(on: boolean): void {
@@ -65,7 +126,22 @@ export class TrophyObject {
   }
 
   setDimmed(dim: boolean): void {
-    this.brightness = dim ? 0.35 : 1
+    this.targetDim = dim ? 1 : 0
+  }
+
+  setFocusCamera(camera: THREE.Camera | null): void {
+    this.focusCamera = camera
+  }
+
+  /** Stronger select zoom for crest AR (camera cannot dolly). */
+  configureArFocus(boost: number, pull: number): void {
+    this.focusScaleBoost = boost
+    this.focusPull = pull
+  }
+
+  /** True when not driving select-scale (reveal ease can own scale briefly). */
+  get isIdleScale(): boolean {
+    return this.targetSelect < 0.5 && this.select < 0.08
   }
 
   update(time: number, delta: number): void {
@@ -73,66 +149,170 @@ export class TrophyObject {
 
     this.hover = THREE.MathUtils.damp(this.hover, this.targetHover, 8, delta)
     this.select = THREE.MathUtils.damp(this.select, this.targetSelect, 5, delta)
+    this.dim = THREE.MathUtils.damp(this.dim, this.targetDim, 7, delta)
+
+    const focusing = this.targetSelect > 0.5 || this.select > 0.08
+    const motion = focusing ? 0 : 1
 
     const floatY =
-      Math.sin(time * this.anim.speed + this.anim.phase) * this.anim.amplitude
+      Math.sin(time * this.anim.speed + this.anim.phase) *
+      this.anim.amplitude *
+      motion
     const breathe =
-      Math.sin(time * (this.anim.speed * 0.7) + this.anim.phase) * 0.008
+      Math.sin(time * (this.anim.speed * 0.7) + this.anim.phase) *
+      0.008 *
+      motion
 
-    const toward = this.hover * 0.12 + this.select * 0.4
+    const toward = (this.hover * 0.12 + this.select * 0.18) * motion
+    const base =
+      typeof this.group.userData.targetScale === 'number'
+        ? this.group.userData.targetScale
+        : this.baseScale
     const scale =
-      this.baseScale * (1 + this.hover * 0.08 + this.select * 0.28 + breathe)
+      base *
+      (1 + this.hover * 0.08 + this.select * this.focusScaleBoost + breathe)
 
     this.group.position.x = this.anim.basePosition.x
     this.group.position.y =
-      this.anim.basePosition.y + floatY + this.select * 0.1
+      this.anim.basePosition.y + floatY + this.select * 0.08
     this.group.position.z = this.anim.basePosition.z + toward
+
+    if (focusing && this.focusPull > 0 && this.focusCamera && this.group.parent) {
+      _homeWorld.set(
+        this.anim.basePosition.x,
+        this.anim.basePosition.y + this.select * 0.08,
+        this.anim.basePosition.z,
+      )
+      this.group.parent.localToWorld(_homeWorld)
+      this.focusCamera.getWorldPosition(_camWorld)
+      _pulled.subVectors(_camWorld, _homeWorld)
+      if (_pulled.lengthSq() > 1e-6) {
+        _pulled.normalize().multiplyScalar(this.select * this.focusPull)
+        _pulled.add(_homeWorld)
+        this.group.parent.worldToLocal(_pulled)
+        this.group.position.copy(_pulled)
+      }
+    }
 
     this.group.rotation.x = this.anim.baseRotation.x
     this.group.rotation.y =
       this.anim.baseRotation.y +
-      Math.sin(time * 0.35 + this.anim.phase) * 0.05 +
+      Math.sin(time * 0.35 + this.anim.phase) * 0.05 * motion +
       this.hover * 0.06 +
       time * 0.15 * (0.15 + this.select * 0.35)
     this.group.rotation.z = this.anim.baseRotation.z
 
     if (this.modelReady) {
-      this.group.scale.setScalar(scale)
+      this.group.scale.setScalar(Math.max(0.001, scale))
     }
 
-    this.applyBrightness()
+    this.applyDim()
   }
 
   dispose(): void {
     this.disposed = true
-    this.group.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose()
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
-        mats.forEach((m) => m.dispose())
-      }
-    })
+    this.unloadModel()
+    disposeObject3D(this.placeholder, { textures: true })
+    this.hitProxy.geometry.dispose()
+    ;(this.hitProxy.material as THREE.Material).dispose()
     this.group.removeFromParent()
+    this.baseColors.clear()
+    this.baseOpacities.clear()
+    this.baseEnvIntensity.clear()
   }
 
-  private applyBrightness(): void {
+  private createPlaceholder(): THREE.Group {
+    const root = new THREE.Group()
+    root.name = 'TrophyPlaceholder'
+
+    const gold = new THREE.MeshStandardMaterial({
+      color: 0xc9a227,
+      metalness: 0.85,
+      roughness: 0.35,
+      envMapIntensity: 1,
+      transparent: true,
+      opacity: 1,
+    })
+    const dark = new THREE.MeshStandardMaterial({
+      color: 0x3a2410,
+      metalness: 0.4,
+      roughness: 0.55,
+      transparent: true,
+      opacity: 1,
+    })
+
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.22, 16), gold)
+    cup.position.y = 0.28
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.14, 12), gold)
+    stem.position.y = 0.14
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 16), dark)
+    base.position.y = 0.03
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.012, 8, 20), gold)
+    rim.rotation.x = Math.PI / 2
+    rim.position.y = 0.39
+
+    for (const mesh of [cup, stem, base, rim]) {
+      mesh.userData.trophyId = this.trophy.id
+      mesh.castShadow = false
+      mesh.receiveShadow = false
+      root.add(mesh)
+    }
+    return root
+  }
+
+  private applyDim(): void {
+    const brightness = 1 - this.dim * 0.7
+    const opacity = 1 - this.dim * 0.78
+    const envScale = 1 - this.dim * 0.85
+
     this.group.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return
+      if (!(obj instanceof THREE.Mesh) || obj === this.hitProxy) return
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
       for (const mat of mats) {
+        if (!mat) continue
+
         if ('color' in mat && mat.color instanceof THREE.Color) {
           const existing = this.baseColors.get(mat)
           const base = existing ?? mat.color.clone()
           if (!existing) this.baseColors.set(mat, base)
-          mat.color.copy(base).multiplyScalar(this.brightness)
+          mat.color.copy(base).multiplyScalar(brightness)
+        }
+
+        if ('opacity' in mat && typeof mat.opacity === 'number') {
+          if (!this.baseOpacities.has(mat)) {
+            this.baseOpacities.set(mat, mat.opacity)
+          }
+          const baseOpacity = this.baseOpacities.get(mat) ?? 1
+          mat.transparent = true
+          mat.opacity = baseOpacity * opacity
+          mat.depthWrite = mat.opacity > 0.85
+          mat.needsUpdate = true
+        }
+
+        if (
+          mat instanceof THREE.MeshStandardMaterial &&
+          typeof mat.envMapIntensity === 'number'
+        ) {
+          if (!this.baseEnvIntensity.has(mat)) {
+            this.baseEnvIntensity.set(mat, mat.envMapIntensity)
+          }
+          const baseEnv = this.baseEnvIntensity.get(mat) ?? 1
+          mat.envMapIntensity = baseEnv * envScale
         }
       }
     })
   }
 
   private async loadModel(): Promise<void> {
-    const scene = await assetLoader.loadGLB(this.trophy.modelSrc)
-    if (this.disposed) return
+    const scene = await assetLoader.loadGLB(this.trophy.modelSrc, undefined, {
+      maxTextureWidth: this.maxTextureWidth,
+      // Instance owns GPU memory; do not keep a second parsed copy forever.
+      cache: false,
+    })
+    if (this.disposed) {
+      disposeObject3D(scene, { textures: true })
+      return
+    }
 
     const box = new THREE.Box3().setFromObject(scene)
     const size = new THREE.Vector3()
@@ -141,23 +321,23 @@ export class TrophyObject {
     const scale = TARGET_HEIGHT / height
     scene.scale.setScalar(scale)
 
-    // Sit on the formation Y (origin at base).
     const scaledBox = new THREE.Box3().setFromObject(scene)
     scene.position.y = -scaledBox.min.y
 
     scene.traverse((obj) => {
       obj.userData.trophyId = this.trophy.id
-      if (obj instanceof THREE.Mesh) {
-        obj.castShadow = false
-        obj.receiveShadow = false
-      }
+      if (!(obj instanceof THREE.Mesh)) return
+      obj.castShadow = false
+      obj.receiveShadow = false
     })
+    preserveSourceTextures(scene)
 
+    this.placeholder.visible = false
     this.group.add(scene)
+    this.modelRoot = scene
     this.baseScale = 1
     this.modelReady = true
 
-    // Resize hit proxy to match trophy.
     const hitBox = new THREE.Box3().setFromObject(scene)
     const hitSize = new THREE.Vector3()
     hitBox.getSize(hitSize)

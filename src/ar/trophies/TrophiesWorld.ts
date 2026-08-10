@@ -2,85 +2,77 @@ import * as THREE from 'three'
 import { trophies } from '@/data/trophies'
 import { TrophyObject } from '@/ar/trophies/TrophyObject'
 import { buildTrophyFormation } from '@/ar/trophies/trophyFormation'
-import {
-  buildProceduralStadium,
-  prepareStadiumModel,
-} from '@/ar/effects/StadiumBuilder'
-import { StadiumLights } from '@/ar/effects/StadiumLights'
-import { assetLoader } from '@/ar/assets/AssetLoader'
-import { CLUB_CREST_SCENE } from '@/config/scenes'
+import { StadiumEnvironment } from '@/ar/stadium/StadiumEnvironment'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
+import { getStadiumViewportFit } from '@/utils/stadiumViewport'
+import { getTrophyLoadBudget } from '@/ar/trophies/trophyBudget'
 
 /**
- * Stadium + floating trophy GLBs for the cabinet experience.
+ * Same stadium orientation/lighting as Presidents, with floating trophy GLBs.
+ * Models load on demand under a hard resident budget (mobile OOM guard).
  */
 export class TrophiesWorld {
-  readonly root = new THREE.Group()
+  readonly environment = new StadiumEnvironment()
+  readonly root = this.environment.root
   readonly trophies: TrophyObject[] = []
-  readonly lights = new StadiumLights()
-  private readonly trophyRoot = new THREE.Group()
-  private particles: THREE.Points | null = null
   private introDone = false
   private revealCount = 0
-  private trophiesBaseHeight = 0
+  private residentOrder: string[] = []
+  private maxResident = trophies.length
+  private preloadTarget = 0
+  private disposed = false
 
   constructor() {
     this.root.name = 'TrophiesWorld'
   }
 
   async setup(): Promise<void> {
-    const stadium = await this.loadStadium()
-    this.root.add(stadium)
+    const capability = detectDeviceCapability()
+    const budget = getTrophyLoadBudget(capability)
 
-    this.trophyRoot.name = 'FloatingTrophies'
-    this.trophyRoot.position.y = this.trophiesBaseHeight
-    this.root.add(this.trophyRoot)
-
-    this.lights.group.position.set(0, 0, 0)
-    this.root.add(this.lights.group)
-    this.lights.setIntensity(0)
-
-    const ambient = new THREE.AmbientLight(0xffead2, 1.35)
-    ambient.name = 'TrophiesAmbient'
-    this.root.add(ambient)
-
-    const key = new THREE.DirectionalLight(0xfff4dc, 2.6)
-    key.name = 'TrophiesKeyLight'
-    key.position.set(3.5, 7, 4.5)
-    this.root.add(key)
-
-    const fill = new THREE.DirectionalLight(0xb8cffd, 1.15)
-    fill.name = 'TrophiesFillLight'
-    fill.position.set(-4, 4, -3)
-    this.root.add(fill)
-
-    const redWash = new THREE.PointLight(0xe30613, 1.4, 14, 2)
-    redWash.position.set(0, 3.2, 0)
-    this.root.add(redWash)
-
-    const hemi = new THREE.HemisphereLight(0x6a7a9a, 0x1a0808, 0.35)
-    this.root.add(hemi)
-
-    this.particles = this.createDust()
-    this.root.add(this.particles)
+    await this.environment.setup({
+      targetWidth: 7.4,
+      preferProcedural: budget.preferProceduralStadium,
+    })
+    this.environment.contentRoot.name = 'FloatingTrophies'
 
     const formation = buildTrophyFormation(trophies)
-    const capability = detectDeviceCapability()
-    const maxTrophies =
-      capability.tier === 'low' ? Math.min(10, formation.length) : formation.length
+    const { cardScale } = getStadiumViewportFit()
+    this.maxResident = budget.maxResidentModels
+    this.preloadTarget = Math.min(budget.maxPreload, formation.length)
 
-    for (let i = 0; i < maxTrophies; i++) {
+    for (let i = 0; i < formation.length; i++) {
       const { trophy, anim } = formation[i]
       const obj = new TrophyObject(trophy, anim)
+      obj.setLoadOptions({ maxTextureWidth: budget.maxTextureWidth })
       obj.group.visible = false
       obj.group.scale.setScalar(0.01)
+      obj.group.userData.targetScale = cardScale
       this.trophies.push(obj)
-      this.trophyRoot.add(obj.group)
+      this.environment.contentRoot.add(obj.group)
     }
+
+    // Kick a tiny preload after placeholders are on screen — never all GLBs.
+    void this.preloadInitial()
+  }
+
+  async ensureTrophyModel(id: string): Promise<void> {
+    if (this.disposed) return
+    const obj = this.getTrophyById(id)
+    if (!obj) return
+    this.touchResident(id)
+    this.evictIfNeeded(id)
+    await obj.ensureModel()
+    if (this.disposed) {
+      obj.unloadModel()
+      return
+    }
+    this.touchResident(id)
+    this.evictIfNeeded(id)
   }
 
   setIntroProgress(t: number): void {
-    this.lights.setIntensity(Math.min(1, t * 1.2))
+    this.environment.setLightIntensity(Math.min(1, t * 1.2))
     const reveal = Math.floor(t * this.trophies.length)
     while (this.revealCount < reveal && this.revealCount < this.trophies.length) {
       const obj = this.trophies[this.revealCount]
@@ -99,30 +91,22 @@ export class TrophiesWorld {
   }
 
   get floatingTrophyAltitude(): number {
-    return this.trophiesBaseHeight
+    return this.environment.floatingCardAltitude
   }
 
   update(time: number, delta: number): void {
-    this.lights.update(delta)
+    this.environment.update(time, delta)
 
     for (let i = 0; i < this.revealCount; i++) {
       const obj = this.trophies[i]
-      const targetScale = 1
+      const targetScale =
+        typeof obj.group.userData.targetScale === 'number'
+          ? obj.group.userData.targetScale
+          : 1
       obj.group.scale.setScalar(
         THREE.MathUtils.damp(obj.group.scale.x, targetScale, 4, delta),
       )
       obj.update(time, delta)
-    }
-
-    if (this.particles) {
-      this.particles.rotation.y += delta * 0.02
-      const positions = this.particles.geometry.getAttribute(
-        'position',
-      ) as THREE.BufferAttribute
-      for (let i = 0; i < positions.count; i++) {
-        positions.setY(i, positions.getY(i) + Math.sin(time + i) * 0.0004)
-      }
-      positions.needsUpdate = true
     }
   }
 
@@ -138,61 +122,50 @@ export class TrophiesWorld {
       obj.setHovered(isHov && !isSel)
       obj.setDimmed(Boolean(selectedId) && !isSel)
     }
+    if (selectedId) void this.ensureTrophyModel(selectedId)
   }
 
   dispose(): void {
+    this.disposed = true
     for (const obj of this.trophies) obj.dispose()
-    this.lights.dispose()
-    this.particles?.geometry.dispose()
-    ;(this.particles?.material as THREE.Material | undefined)?.dispose()
-    this.root.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose()
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
-        mats.forEach((m) => m.dispose())
+    this.trophies.length = 0
+    this.residentOrder = []
+    this.environment.dispose()
+  }
+
+  private async preloadInitial(): Promise<void> {
+    for (let i = 0; i < this.preloadTarget; i++) {
+      if (this.disposed) return
+      const id = this.trophies[i]?.trophy.id
+      if (!id) return
+      try {
+        await this.ensureTrophyModel(id)
+      } catch (error) {
+        console.warn('[TrophiesWorld] Preload failed', id, error)
       }
-    })
-    this.root.removeFromParent()
-  }
-
-  private createDust(): THREE.Points {
-    const capability = detectDeviceCapability()
-    const count = Math.floor(80 * capability.particleScale)
-    const positions = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 8
-      positions[i * 3 + 1] = Math.random() * 3.5
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 8
     }
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    const mat = new THREE.PointsMaterial({
-      color: 0xffd7a8,
-      size: 0.03,
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    })
-    const points = new THREE.Points(geo, mat)
-    points.name = 'StadiumDust'
-    return points
   }
 
-  private async loadStadium(): Promise<THREE.Object3D> {
-    try {
-      const stadium = await assetLoader.loadGLB(CLUB_CREST_SCENE.modelSrc)
-      prepareStadiumModel(stadium, 7.4)
-      const bounds = new THREE.Box3().setFromObject(stadium)
-      this.trophiesBaseHeight = bounds.max.y + 0.55
-      stadium.name = 'ImportedStadium'
-      return stadium
-    } catch {
-      const fallback = buildProceduralStadium()
-      fallback.scale.setScalar(1.35)
-      fallback.name = 'ProceduralStadiumFallback'
-      this.trophiesBaseHeight = 0.45
-      return fallback
+  private touchResident(id: string): void {
+    this.residentOrder = this.residentOrder.filter((item) => item !== id)
+    this.residentOrder.push(id)
+  }
+
+  private evictIfNeeded(keepId: string): void {
+    while (this.residentOrder.length > this.maxResident) {
+      const victim = this.residentOrder.find((id) => id !== keepId)
+      if (!victim) break
+      this.residentOrder = this.residentOrder.filter((id) => id !== victim)
+      this.getTrophyById(victim)?.unloadModel()
+    }
+
+    // Also count currently loaded models that may not be tracked yet.
+    const loaded = this.trophies.filter((t) => t.hasModel)
+    if (loaded.length <= this.maxResident) return
+    for (const obj of loaded) {
+      if (obj.trophy.id === keepId) continue
+      if (this.residentOrder.includes(obj.trophy.id)) continue
+      obj.unloadModel()
     }
   }
 }

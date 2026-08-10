@@ -18,6 +18,10 @@ export interface President {
   description: string
   achievements?: string[]
   source?: string
+  /** Front-face eyebrow (default: PRESIDENT OF AL AHLY) */
+  cardEyebrow?: string
+  /** Badge when endYear === null (default: CURRENT PRESIDENT) */
+  currentBadge?: string
 }
 
 export const presidents: President[] = [
@@ -80,8 +84,9 @@ export const presidents: President[] = [
     yearsLabel: '1940 — 1941',
     portrait: '/assets/presidents/anwar.jpg',
     description:
-      'Presided briefly in 1940–1941 between the two terms of Gaafar Waly Pasha. Historical portrait unavailable on the source poster (silhouette placeholder).',
-    source: 'Korabia presidents poster',
+      'Acting president between Gaafar Waly Pasha’s two terms (1940–1941). Also remembered as Al Ahly’s first football team captain. No verified historical photograph is available in the club archive source used for other presidents.',
+    achievements: ['Acting club president 1940–1941', 'First Al Ahly football captain'],
+    source: 'Club historical records (portrait unavailable on Korabia presidents poster)',
   },
   {
     id: 'ahmed-hasanein',

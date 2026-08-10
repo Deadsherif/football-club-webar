@@ -6,25 +6,34 @@ import { analytics } from '@/services/analyticsService'
 interface FloatingARMenuProps {
   onSelect: (section: Exclude<ExploreSection, null>) => void
   onOpenPresidents: () => void
+  onOpenLegends: () => void
   onOpenTrophies: () => void
+  onOpenBoard: () => void
+  onOpenRedCastle: () => void
 }
 
 export function FloatingARMenu({
   onSelect,
   onOpenPresidents,
+  onOpenLegends,
   onOpenTrophies,
+  onOpenBoard,
+  onOpenRedCastle,
 }: FloatingARMenuProps) {
   const copy = t()
   const items: Array<
     | { id: Exclude<ExploreSection, null>; label: string }
     | { id: 'presidents'; label: string }
+    | { id: 'legends'; label: string }
     | { id: 'trophies-experience'; label: string }
+    | { id: 'board-experience'; label: string }
+    | { id: 'red-castle-experience'; label: string }
   > = [
     { id: 'presidents', label: copy.menuPresidents },
-    { id: 'history', label: copy.menuHistory },
-    { id: 'trophies-experience', label: copy.menuTrophies },
     { id: 'legends', label: copy.menuLegends },
-    { id: 'future', label: copy.menuFuture },
+    { id: 'trophies-experience', label: copy.menuTrophies },
+    { id: 'board-experience', label: copy.menuBoard },
+    { id: 'red-castle-experience', label: copy.menuRedCastle },
   ]
 
   return (
@@ -40,14 +49,26 @@ export function FloatingARMenu({
                 onOpenPresidents()
                 return
               }
+              if (item.id === 'legends') {
+                onOpenLegends()
+                return
+              }
               if (item.id === 'trophies-experience') {
                 onOpenTrophies()
+                return
+              }
+              if (item.id === 'board-experience') {
+                onOpenBoard()
+                return
+              }
+              if (item.id === 'red-castle-experience') {
+                onOpenRedCastle()
                 return
               }
               analytics.sectionOpened(item.id)
               onSelect(item.id)
             }}
-            className="rounded-2xl border border-white/15 bg-black/45 px-3 py-4 text-[11px] font-semibold tracking-[0.22em] text-white shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-md transition active:scale-[0.98]"
+            className="rounded-2xl border border-white/15 bg-black/45 px-3 py-4 text-[11px] font-semibold tracking-[0.14em] text-white shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-md transition active:scale-[0.98]"
           >
             {item.label}
           </button>

@@ -1,25 +1,35 @@
 import { t } from '@/i18n'
+import type { ExploreSection } from '@/types/ar'
 
 interface FallbackExperienceProps {
-  onExplore: (section: 'history' | 'trophies' | 'legends' | 'future') => void
   onOpenPresidents: () => void
+  onOpenLegends: () => void
   onOpenTrophies: () => void
+  onOpenBoard: () => void
+  onOpenRedCastle: () => void
+  onExplore: (section: Exclude<ExploreSection, null>) => void
   onBack: () => void
 }
 
 export function FallbackExperience({
-  onExplore,
   onOpenPresidents,
+  onOpenLegends,
   onOpenTrophies,
+  onOpenBoard,
+  onOpenRedCastle,
+  onExplore,
   onBack,
 }: FallbackExperienceProps) {
   const copy = t()
-  const items = [
-    { id: 'presidents' as const, label: copy.menuPresidents },
-    { id: 'history' as const, label: copy.menuHistory },
-    { id: 'trophies' as const, label: copy.menuTrophies },
-    { id: 'legends' as const, label: copy.menuLegends },
-    { id: 'future' as const, label: copy.menuFuture },
+  const items: Array<{
+    id: 'presidents' | 'legends' | 'trophies' | 'board' | 'red-castle'
+    label: string
+  }> = [
+    { id: 'presidents', label: copy.menuPresidents },
+    { id: 'legends', label: copy.menuLegends },
+    { id: 'trophies', label: copy.menuTrophies },
+    { id: 'board', label: copy.menuBoard },
+    { id: 'red-castle', label: copy.menuRedCastle },
   ]
 
   return (
@@ -46,17 +56,14 @@ export function FallbackExperience({
               key={item.id}
               type="button"
               onClick={() => {
-                if (item.id === 'presidents') {
-                  onOpenPresidents()
-                  return
-                }
-                if (item.id === 'trophies') {
-                  onOpenTrophies()
-                  return
-                }
-                onExplore(item.id)
+                if (item.id === 'presidents') onOpenPresidents()
+                else if (item.id === 'legends') onOpenLegends()
+                else if (item.id === 'trophies') onOpenTrophies()
+                else if (item.id === 'board') onOpenBoard()
+                else if (item.id === 'red-castle') onOpenRedCastle()
+                else onExplore(item.id)
               }}
-              className="rounded-2xl border border-white/12 bg-white/5 px-4 py-6 text-xs font-semibold tracking-[0.18em] text-white backdrop-blur-md transition active:scale-[0.98]"
+              className="rounded-2xl border border-white/12 bg-white/5 px-4 py-6 text-xs font-semibold tracking-[0.12em] text-white backdrop-blur-md transition active:scale-[0.98]"
             >
               {item.label}
             </button>

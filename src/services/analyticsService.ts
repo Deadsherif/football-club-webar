@@ -34,6 +34,15 @@ class AnalyticsService {
   legendsOpened() {
     this.track('legends_opened')
   }
+  legendEraSelected(squadId: string) {
+    this.track('legend_era_selected', { squadId })
+  }
+  legendPlayerSelected(playerId: string) {
+    this.track('legend_player_selected', { playerId })
+  }
+  allTimeLegendsOpened() {
+    this.track('all_time_legends_opened')
+  }
   futureOpened() {
     this.track('future_opened')
   }

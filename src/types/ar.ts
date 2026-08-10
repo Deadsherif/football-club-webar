@@ -8,7 +8,10 @@ export type AppPhase =
   | 'fallback'
   | 'desktop'
   | 'presidents'
+  | 'legends'
   | 'trophies'
+  | 'board'
+  | 'red-castle'
 
 export type CameraErrorKind =
   | 'denied'
@@ -51,6 +54,12 @@ export type CinematicPhase =
   | 'title'
   | 'complete'
 
-export type ExploreSection = 'history' | 'trophies' | 'legends' | 'future' | null
+export type ExploreSection =
+  | 'history'
+  | 'trophies'
+  | 'future'
+  | 'board'
+  | 'red-castle'
+  | null
 
 export type Locale = 'en' | 'ar'

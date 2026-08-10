@@ -4,6 +4,15 @@ import { PresidentsWorld } from '@/ar/presidents/PresidentsWorld'
 import { presidents, getPresidentIndex } from '@/data/presidents'
 import { audio } from '@/services/audioService'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
+import {
+  getStadiumViewportFit,
+  type StadiumViewportFit,
+} from '@/utils/stadiumViewport'
+import { attachStudioEnvironment } from '@/ar/effects/studioEnvironment'
+import {
+  computeStableCardFraming,
+  holdSelectCamera,
+} from '@/ar/engine/stableSelectCamera'
 
 export type PresidentsPhase =
   | 'boot'
@@ -50,6 +59,8 @@ export class PresidentsController {
   private hasUserNavigated = false
   private transitionBannerUntil = 0
   private container: HTMLElement
+  private fit: StadiumViewportFit
+  private disposeEnvironment: (() => void) | null = null
   private onPointerMove: (e: PointerEvent) => void
   private onPointerDown: (e: PointerEvent) => void
   private onResize: () => void
@@ -57,6 +68,7 @@ export class PresidentsController {
   constructor(container: HTMLElement) {
     this.container = container
     const capability = detectDeviceCapability()
+    this.fit = getStadiumViewportFit(container.clientWidth, container.clientHeight)
     this.renderer = new THREE.WebGLRenderer({
       antialias: capability.antialias,
       alpha: false,
@@ -71,15 +83,16 @@ export class PresidentsController {
     container.appendChild(this.renderer.domElement)
 
     this.camera = new THREE.PerspectiveCamera(
-      50,
+      this.fit.fov,
       container.clientWidth / Math.max(1, container.clientHeight),
       0.1,
       40,
     )
     this.camera.position.copy(this.cameraTarget)
 
-    this.scene.fog = new THREE.FogExp2(0x080305, 0.055)
+    this.scene.fog = new THREE.FogExp2(0x080305, 0.04)
     this.scene.add(this.world.root)
+    this.disposeEnvironment = attachStudioEnvironment(this.renderer, this.scene, 1)
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
@@ -88,12 +101,11 @@ export class PresidentsController {
     this.controls.enablePan = false
     this.controls.maxPolarAngle = Math.PI * 0.48
     this.controls.minPolarAngle = Math.PI * 0.16
-    this.controls.minDistance = 1.8
-    this.controls.maxDistance = 8
+    this.controls.minDistance = this.fit.minDistance
+    this.controls.maxDistance = this.fit.maxDistance
     this.controls.target.copy(this.lookTarget)
     this.controls.enabled = false
     this.controls.addEventListener('start', () => {
-      // Do not pull the camera back into its cinematic orbit after a user drags.
       this.hasUserNavigated = true
     })
 
@@ -108,11 +120,7 @@ export class PresidentsController {
 
   async start(): Promise<void> {
     await this.world.setup()
-    const cardsHeight = this.world.floatingCardAltitude
-    this.cameraTarget.set(0, cardsHeight + 1.2, 4.2)
-    this.lookTarget.set(0, cardsHeight + 0.9, 0)
-    this.desiredCam.copy(this.cameraTarget)
-    this.desiredLook.copy(this.lookTarget)
+    this.applyExploreFraming()
     this.camera.position.copy(this.cameraTarget)
     this.controls.target.copy(this.lookTarget)
     this.running = true
@@ -133,6 +141,8 @@ export class PresidentsController {
     this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown)
     this.world.dispose()
     this.controls.dispose()
+    this.disposeEnvironment?.()
+    this.disposeEnvironment = null
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -142,7 +152,7 @@ export class PresidentsController {
     const president = presidents[clamped]
     this.selectedIndex = clamped
     this.selectedId = president.id
-    this.world.setFocus(this.selectedId, null)
+    this.world.setFocus(this.selectedId, null, this.camera)
     this.focusCameraOn(president.id)
     this.hooks.onSelect?.(this.selectedId)
     this.hooks.onYearLabel?.(president.yearsLabel)
@@ -164,13 +174,11 @@ export class PresidentsController {
   clearSelection(): void {
     this.selectedId = null
     this.selectedIndex = -1
-    this.world.setFocus(null, this.hoveredId)
-    const cardsHeight = this.world.floatingCardAltitude
-    this.desiredCam.set(0, cardsHeight + 1.2, 4.2)
-    this.desiredLook.set(0, cardsHeight + 0.9, 0)
-    this.controls.enabled = this.phase === 'explore'
+    this.world.setFocus(null, this.hoveredId, this.camera)
+    this.applyExploreFraming()
     this.hooks.onSelect?.(null)
     this.setPhase('explore')
+    this.controls.enabled = true
   }
 
   getSelectedId(): string | null {
@@ -179,6 +187,15 @@ export class PresidentsController {
 
   isShowingTransitionBanner(): boolean {
     return performance.now() < this.transitionBannerUntil
+  }
+
+  private applyExploreFraming(): void {
+    const cardsHeight = this.world.floatingCardAltitude
+    const distance = this.fit.cameraDistance
+    this.cameraTarget.set(0, cardsHeight + this.fit.cameraHeight, distance)
+    this.lookTarget.set(0, cardsHeight + this.fit.lookHeight, 0)
+    this.desiredCam.copy(this.cameraTarget)
+    this.desiredLook.copy(this.lookTarget)
   }
 
   private tick = (): void => {
@@ -192,8 +209,15 @@ export class PresidentsController {
     this.world.update(time, delta)
 
     const manualNavigation = this.phase === 'explore' && this.hasUserNavigated
-    if (!manualNavigation) {
-      // Smooth camera only during the intro, idle orbit, and card focus.
+    if (this.selectedId) {
+      holdSelectCamera(
+        this.camera,
+        this.desiredCam,
+        this.lookTarget,
+        this.desiredLook,
+        this.controls.target,
+      )
+    } else if (!manualNavigation) {
       this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * 2.2))
       this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * 2.4))
       this.controls.target.copy(this.lookTarget)
@@ -202,18 +226,21 @@ export class PresidentsController {
     if (this.phase === 'explore' && !this.selectedId) {
       if (!this.hasUserNavigated) {
         this.idleOrbit += delta * 0.12
+        const distance = this.fit.cameraDistance
         this.desiredCam.set(
-          Math.sin(this.idleOrbit) * 4.2,
+          Math.sin(this.idleOrbit) * distance,
           this.world.floatingCardAltitude +
-            1.25 +
+            this.fit.cameraHeight +
             Math.sin(this.idleOrbit * 0.5) * 0.15,
-          Math.cos(this.idleOrbit) * 4.2,
+          Math.cos(this.idleOrbit) * distance,
         )
       }
     }
 
-    if (this.controls.enabled) this.controls.update()
-    else this.camera.lookAt(this.lookTarget)
+    if (!this.selectedId) {
+      if (this.controls.enabled) this.controls.update()
+      else this.camera.lookAt(this.lookTarget)
+    }
 
     this.renderer.render(this.scene, this.camera)
   }
@@ -229,7 +256,11 @@ export class PresidentsController {
     if (this.phase === 'lights') {
       const t = Math.min(0.4, this.phaseTime / 2.0)
       this.world.setIntroProgress(t)
-      this.desiredCam.set(0, this.world.floatingCardAltitude + 1.6, 5.2)
+      this.desiredCam.set(
+        0,
+        this.world.floatingCardAltitude + this.fit.cameraHeight + 0.4,
+        this.fit.cameraDistance + 1,
+      )
       if (this.phaseTime > 2.0) this.setPhase('reveal')
       return
     }
@@ -267,7 +298,7 @@ export class PresidentsController {
     if (!isDown) {
       if (id !== this.hoveredId) {
         this.hoveredId = id ?? null
-        this.world.setFocus(this.selectedId, this.hoveredId)
+        this.world.setFocus(this.selectedId, this.hoveredId, this.camera)
         this.hooks.onHover?.(this.hoveredId)
       }
       return
@@ -278,7 +309,6 @@ export class PresidentsController {
       return
     }
 
-    // Tap selected card → flip
     if (this.selectedId === id) {
       this.world.getCardById(id)?.toggleFlip()
       void audio.play('ui')
@@ -292,20 +322,34 @@ export class PresidentsController {
   private focusCameraOn(id: string): void {
     const card = this.world.getCardById(id)
     if (!card) return
-    card.group.updateWorldMatrix(true, false)
-    const pos = card.group.getWorldPosition(new THREE.Vector3())
-    const outward = new THREE.Vector3(pos.x, 0, pos.z).normalize()
-    if (outward.lengthSq() < 0.01) outward.set(0, 0, 1)
-    this.desiredLook.copy(pos).add(new THREE.Vector3(0, 0.1, 0))
-    this.desiredCam.copy(pos).add(outward.multiplyScalar(1.35)).setY(pos.y + 0.25)
+    const parent = card.group.parent
+    const home = card.anim.basePosition.clone()
+    if (parent) parent.localToWorld(home)
+    else home.copy(card.anim.basePosition)
+
+    const { cam, look } = computeStableCardFraming(home, this.fit)
+    this.desiredLook.copy(look)
+    this.desiredCam.copy(cam)
     this.controls.enabled = false
+    holdSelectCamera(
+      this.camera,
+      this.desiredCam,
+      this.lookTarget,
+      this.desiredLook,
+      this.controls.target,
+    )
   }
 
   private resize(): void {
     const w = this.container.clientWidth
     const h = Math.max(1, this.container.clientHeight)
+    this.fit = getStadiumViewportFit(w, h)
+    this.camera.fov = this.fit.fov
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
+    this.controls.minDistance = this.fit.minDistance
+    this.controls.maxDistance = this.fit.maxDistance
     this.renderer.setSize(w, h)
+    if (!this.selectedId) this.applyExploreFraming()
   }
 }

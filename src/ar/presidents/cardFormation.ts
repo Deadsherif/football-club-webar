@@ -1,22 +1,26 @@
 import * as THREE from 'three'
 import type { President } from '@/data/presidents'
 import type { CardAnimState } from '@/ar/presidents/PresidentCard'
+import { getStadiumViewportFit } from '@/utils/stadiumViewport'
 
 /**
  * Cinematic spatial formation around the pitch — not a flat timeline.
+ * On portrait phones the ring is scaled in so side cards stay on screen.
  */
 export function buildCardFormation(
   list: President[],
 ): Array<{ president: President; anim: CardAnimState }> {
   const slots = FORMATION_SLOTS
+  const { formationScale } = getStadiumViewportFit()
+
   return list.map((president, i) => {
     const slot = slots[i % slots.length]
     const ring = Math.floor(i / slots.length)
-    const spread = 1 + ring * 0.35
+    const spread = (1 + ring * 0.35) * formationScale
 
     const basePosition = new THREE.Vector3(
       slot.x * spread,
-      slot.y + (i % 3) * 0.05,
+      slot.y * (0.85 + formationScale * 0.15) + (i % 3) * 0.04,
       slot.z * spread,
     )
     const baseRotation = new THREE.Euler(

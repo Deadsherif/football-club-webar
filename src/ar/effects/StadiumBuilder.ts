@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { preserveSourceTextures } from '@/ar/effects/studioEnvironment'
 
 /**
  * Stylized night-match stadium built from lightweight primitives.
@@ -142,6 +143,7 @@ function addStand(
 
 /**
  * Fit an imported stadium GLB into the portal footprint.
+ * Textures and PBR factors stay as authored in the source file.
  */
 export function prepareStadiumModel(model: THREE.Object3D, targetWidth = 1.05): void {
   const box = new THREE.Box3().setFromObject(model)
@@ -156,4 +158,6 @@ export function prepareStadiumModel(model: THREE.Object3D, targetWidth = 1.05): 
   box.getCenter(center)
   model.position.sub(center)
   model.position.y -= box.min.y
+
+  preserveSourceTextures(model)
 }

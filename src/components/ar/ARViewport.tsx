@@ -12,10 +12,14 @@ interface ARViewportProps {
   exploreSection: ExploreSection
   onSelectSection: (section: Exclude<ExploreSection, null>) => void
   onOpenPresidents: () => void
+  onOpenLegends: () => void
   onOpenTrophies: () => void
+  onOpenBoard: () => void
+  onOpenRedCastle: () => void
   onOpenAI: () => void
   onExit: () => void
   showOverlay?: boolean
+  menuHidden?: boolean
 }
 
 export function ARViewport({
@@ -25,10 +29,14 @@ export function ARViewport({
   exploreSection,
   onSelectSection,
   onOpenPresidents,
+  onOpenLegends,
   onOpenTrophies,
+  onOpenBoard,
+  onOpenRedCastle,
   onOpenAI,
   onExit,
   showOverlay = true,
+  menuHidden = false,
 }: ARViewportProps) {
   const copy = t()
   const unlocked = cinematicPhase === 'complete'
@@ -53,7 +61,7 @@ export function ARViewport({
 
           {searching && <ScannerOverlay trackingState={trackingState} />}
 
-          {showMenu && !exploreSection && (
+          {showMenu && !exploreSection && !menuHidden && (
             <>
               <div className="pointer-events-none absolute inset-x-0 top-[max(4.5rem,env(safe-area-inset-top)+3.5rem)] z-20 px-6 text-center">
                 <p className="font-title text-lg tracking-[0.2em] text-white">
@@ -64,7 +72,10 @@ export function ARViewport({
               <FloatingARMenu
                 onSelect={onSelectSection}
                 onOpenPresidents={onOpenPresidents}
+                onOpenLegends={onOpenLegends}
                 onOpenTrophies={onOpenTrophies}
+                onOpenBoard={onOpenBoard}
+                onOpenRedCastle={onOpenRedCastle}
               />
               <AskAlAhlyButton onClick={onOpenAI} />
             </>

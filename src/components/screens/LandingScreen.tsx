@@ -2,10 +2,15 @@ import { t } from '@/i18n'
 
 interface LandingScreenProps {
   onStart: () => void
+  onContinueInteractive?: () => void
   crestSrc: string
 }
 
-export function LandingScreen({ onStart, crestSrc }: LandingScreenProps) {
+export function LandingScreen({
+  onStart,
+  onContinueInteractive,
+  crestSrc,
+}: LandingScreenProps) {
   const copy = t()
 
   return (
@@ -35,13 +40,25 @@ export function LandingScreen({ onStart, crestSrc }: LandingScreenProps) {
           {copy.landingSubtitle}
         </p>
 
-        <button
-          type="button"
-          onClick={onStart}
-          className="mt-10 min-h-14 w-full max-w-xs rounded-full bg-ahly-red px-8 py-4 text-sm font-bold tracking-[0.2em] text-white shadow-[0_16px_48px_rgba(227,6,19,0.4)] transition active:scale-[0.98]"
-        >
-          {copy.startExperience}
-        </button>
+        <div className="mt-10 flex w-full max-w-xs flex-col gap-3">
+          <button
+            type="button"
+            onClick={onStart}
+            className="min-h-14 w-full rounded-full bg-ahly-red px-8 py-4 text-sm font-bold tracking-[0.2em] text-white shadow-[0_16px_48px_rgba(227,6,19,0.4)] transition active:scale-[0.98]"
+          >
+            {copy.startExperience}
+          </button>
+
+          {onContinueInteractive && (
+            <button
+              type="button"
+              onClick={onContinueInteractive}
+              className="min-h-12 w-full rounded-full border border-white/20 bg-black/35 px-6 py-3 text-xs font-semibold tracking-[0.16em] text-white/80 backdrop-blur-sm transition active:scale-[0.98]"
+            >
+              {copy.continueInteractive}
+            </button>
+          )}
+        </div>
 
         <p className="mt-5 text-xs tracking-[0.18em] text-white/40 uppercase">
           {copy.immersiveHint}

@@ -8,7 +8,14 @@ export const PERFORMANCE = {
   /** Prefer power-saving GPU when available. */
   powerPreference: 'default' as WebGLPowerPreference,
   antialias: false,
-  /** Soft miss/warmup for more stable phone tracking. */
-  warmupTolerance: 5,
-  missTolerance: 5,
+  /**
+   * MindAR One Euro Filter — lower cutoff = smoother (less shake),
+   * lower beta = less overshoot when the phone moves.
+   */
+  filterMinCF: 0.00015,
+  filterBeta: 40,
+  /** Need more confirmed frames before locking the crest. */
+  warmupTolerance: 10,
+  /** Tolerate brief tracking gaps without hiding the stadium. */
+  missTolerance: 18,
 } as const

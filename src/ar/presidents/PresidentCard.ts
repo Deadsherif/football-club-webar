@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import type { President } from '@/data/presidents'
+import { ArCardZoom } from '@/ar/engine/ArCardZoom'
+import { yawFacingCamera } from '@/ar/engine/cardFaceCamera'
 
 const CARD_W = 0.42
 const CARD_H = 0.62
@@ -24,6 +26,10 @@ export class PresidentCard {
   readonly glow: THREE.Mesh
   readonly president: President
   readonly anim: CardAnimState
+  /** Visual size multiplier — keep <1 for crest AR pitch cards. */
+  baseScale = 1
+  /** Entry 0→1 for fly-in from below the pitch. */
+  entry = 0
 
   private flip = 0
   private targetFlip = 0
@@ -32,9 +38,20 @@ export class PresidentCard {
   private select = 0
   private targetSelect = 0
   private brightness = 1
+  private dim = 0
+  private targetDim = 0
   private disposed = false
   private frontTexture: THREE.CanvasTexture | null = null
   private backTexture: THREE.CanvasTexture | null = null
+  private readonly arZoom = new ArCardZoom()
+  private focusCamera: THREE.Camera | null = null
+  private targetEntry = 1
+  private orbit = 0
+  private readonly homeLocal = new THREE.Vector3()
+  private readonly lockedHome = new THREE.Vector3()
+  private homeLocked = false
+  private readonly edge: THREE.LineSegments
+  private readonly edgeBaseOpacity: number
 
   constructor(president: President, anim: CardAnimState) {
     this.president = president
@@ -46,10 +63,16 @@ export class PresidentCard {
     const frontMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.FrontSide,
+      transparent: true,
+      opacity: 1,
+      depthWrite: true,
     })
     const backMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.FrontSide,
+      transparent: true,
+      opacity: 1,
+      depthWrite: true,
     })
 
     this.meshFront = new THREE.Mesh(geo, frontMat)
@@ -62,15 +85,16 @@ export class PresidentCard {
     this.meshBack.userData.presidentId = president.id
 
     // A wire frame keeps depth without putting an opaque box over the portrait.
-    const edge = new THREE.LineSegments(
+    this.edgeBaseOpacity = 0.85
+    this.edge = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(CARD_W, CARD_H, CARD_D)),
       new THREE.LineBasicMaterial({
         color: president.endYear === null ? 0xe30613 : 0xd4af37,
         transparent: true,
-        opacity: 0.85,
+        opacity: this.edgeBaseOpacity,
       }),
     )
-    edge.userData.presidentId = president.id
+    this.edge.userData.presidentId = president.id
 
     this.glow = new THREE.Mesh(
       new THREE.PlaneGeometry(CARD_W * 1.18, CARD_H * 1.18),
@@ -85,10 +109,9 @@ export class PresidentCard {
     )
     this.glow.position.z = -0.02
 
-    this.group.add(edge, this.meshFront, this.meshBack, this.glow)
+    this.group.add(this.edge, this.meshFront, this.meshBack, this.glow)
     this.group.position.copy(anim.basePosition)
     this.group.rotation.copy(anim.baseRotation)
-
     void this.loadTextures()
   }
 
@@ -97,8 +120,14 @@ export class PresidentCard {
   }
 
   setSelected(on: boolean): void {
+    const wasSelected = this.targetSelect > 0.5
     this.targetSelect = on ? 1 : 0
-    if (on) this.targetFlip = 1
+    // Portrait on first select / deselect; keep flip while staying selected.
+    if (on && !wasSelected) this.targetFlip = 0
+    if (!on) {
+      this.targetFlip = 0
+      this.homeLocked = false
+    }
   }
 
   setFlipped(on: boolean): void {
@@ -110,7 +139,27 @@ export class PresidentCard {
   }
 
   setDimmed(dim: boolean): void {
-    this.brightness = dim ? 0.35 : 1
+    this.targetDim = dim ? 1 : 0
+  }
+
+  setArFocus(active: boolean, camera: THREE.Camera | null = null): void {
+    this.arZoom.setActive(active)
+    if (camera) this.focusCamera = camera
+  }
+
+  /** Stronger select zoom for crest AR (camera cannot dolly). */
+  configureArFocus(boost: number, pull: number): void {
+    this.arZoom.focusScaleBoost = boost
+    this.arZoom.focusPull = pull
+  }
+
+  setFocusCamera(camera: THREE.Camera | null): void {
+    this.focusCamera = camera
+  }
+
+  beginFlyIn(): void {
+    this.entry = 0
+    this.targetEntry = 1
   }
 
   update(time: number, delta: number): void {
@@ -118,40 +167,111 @@ export class PresidentCard {
 
     this.hover = THREE.MathUtils.damp(this.hover, this.targetHover, 8, delta)
     this.select = THREE.MathUtils.damp(this.select, this.targetSelect, 5, delta)
-    this.flip = THREE.MathUtils.damp(this.flip, this.targetFlip, 6, delta)
+    this.flip = THREE.MathUtils.damp(this.flip, this.targetFlip, 8, delta)
+    this.entry = THREE.MathUtils.damp(this.entry, this.targetEntry, 2.6, delta)
+    this.dim = THREE.MathUtils.damp(this.dim, this.targetDim, 7, delta)
+    this.orbit += delta * 0.22
+
+    const focusing = this.targetSelect > 0.5 || this.arZoom.isFocusing
+    const motion = focusing ? 0 : 1
 
     const floatY =
-      Math.sin(time * this.anim.speed + this.anim.phase) * this.anim.amplitude
-    const breathe =
-      Math.sin(time * (this.anim.speed * 0.7) + this.anim.phase) * 0.008
+      Math.sin(time * this.anim.speed + this.anim.phase) *
+      this.anim.amplitude *
+      motion
+    const driftX =
+      Math.cos(time * 0.35 + this.anim.phase) *
+      this.anim.amplitude *
+      0.45 *
+      motion
+    const driftZ =
+      Math.sin(time * 0.28 + this.anim.phase * 1.1) *
+      this.anim.amplitude *
+      0.35 *
+      motion
+    const breathe = focusing
+      ? 0
+      : Math.sin(time * (this.anim.speed * 0.7) + this.anim.phase) * 0.008
 
-    const toward = this.hover * 0.18 + this.select * 0.55
-    const scale = 1 + this.hover * 0.08 + this.select * 0.22 + breathe
+    const toward =
+      (this.hover * 0.18 + this.select * 0.12) * this.baseScale * motion
+    const scale =
+      this.baseScale *
+      this.entry *
+      (1 + this.hover * 0.08 + this.select * 0.1 + breathe)
 
-    this.group.position.x = this.anim.basePosition.x
-    this.group.position.y = this.anim.basePosition.y + floatY + this.select * 0.12
-    this.group.position.z = this.anim.basePosition.z + toward
+    const entryY = (1 - this.entry) * -0.55 * Math.max(this.baseScale, 0.2)
 
-    this.group.rotation.x = this.anim.baseRotation.x + this.hover * -0.06
-    this.group.rotation.y =
-      this.anim.baseRotation.y +
-      Math.sin(time * 0.4 + this.anim.phase) * 0.04 +
-      this.flip * Math.PI +
-      this.hover * 0.08
-    this.group.rotation.z = this.anim.baseRotation.z
+    if (focusing) {
+      // Freeze home once so damping select / camera motion cannot jitter the card.
+      if (!this.homeLocked) {
+        this.lockedHome.set(
+          this.anim.basePosition.x,
+          this.anim.basePosition.y + entryY + 0.12 * this.baseScale,
+          this.anim.basePosition.z,
+        )
+        this.homeLocked = true
+      }
+      this.homeLocal.copy(this.lockedHome)
+      this.group.position.copy(this.homeLocal)
+      // Face the lens so select always shows the image first, then flip for back.
+      const faceYaw = this.focusCamera
+        ? yawFacingCamera(this.homeLocal, this.group.parent, this.focusCamera)
+        : this.anim.baseRotation.y
+      this.group.rotation.set(0, faceYaw + this.flip * Math.PI, 0)
+    } else {
+      this.homeLocked = false
+      this.homeLocal.set(
+        this.anim.basePosition.x,
+        this.anim.basePosition.y + entryY,
+        this.anim.basePosition.z + toward,
+      )
+      this.group.position.set(
+        this.homeLocal.x + driftX,
+        this.homeLocal.y + floatY,
+        this.homeLocal.z + driftZ,
+      )
+      this.group.rotation.x = this.anim.baseRotation.x + this.hover * -0.06
+      this.group.rotation.y =
+        this.anim.baseRotation.y +
+        Math.sin(time * 0.4 + this.anim.phase) * 0.05 +
+        this.flip * Math.PI +
+        this.hover * 0.08
+      this.group.rotation.z = this.anim.baseRotation.z
+    }
 
-    this.group.scale.setScalar(scale)
+    this.group.scale.setScalar(Math.max(0.001, scale))
+    this.arZoom.apply(
+      this.group,
+      this.focusCamera,
+      delta,
+      this.baseScale * this.entry * (1 + (focusing ? 0.04 : this.select * 0.06)),
+      this.homeLocal,
+      this.flip,
+    )
 
     const frontMat = this.meshFront.material as THREE.MeshBasicMaterial
     const backMat = this.meshBack.material as THREE.MeshBasicMaterial
     const glowMat = this.glow.material as THREE.MeshBasicMaterial
+    const edgeMat = this.edge.material as THREE.LineBasicMaterial
 
+    this.brightness = 1 - this.dim * 0.72
+    const faceOpacity = 1 - this.dim * 0.78
     frontMat.color.setScalar(this.brightness)
     backMat.color.setScalar(this.brightness)
+    frontMat.opacity = faceOpacity
+    backMat.opacity = faceOpacity
+    frontMat.depthWrite = faceOpacity > 0.85
+    backMat.depthWrite = faceOpacity > 0.85
+    edgeMat.opacity = this.edgeBaseOpacity * faceOpacity
 
     const isCurrent = this.president.endYear === null
     glowMat.opacity =
-      (isCurrent ? 0.055 : 0.025) + this.hover * 0.04 + this.select * 0.06
+      ((isCurrent ? 0.055 : 0.025) +
+        this.hover * 0.04 +
+        this.select * 0.08 +
+        this.arZoom.value * 0.1) *
+      (1 - this.dim * 0.92)
   }
 
   dispose(): void {
@@ -224,7 +344,11 @@ async function createCardFaceTexture(
     ctx.fillStyle = '#d4af37'
     ctx.font = '600 18px Oswald, Arial, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('PRESIDENT OF AL AHLY', w / 2, h - 115)
+    ctx.fillText(
+      (president.cardEyebrow ?? 'PRESIDENT OF AL AHLY').toUpperCase(),
+      w / 2,
+      h - 115,
+    )
 
     ctx.fillStyle = '#ffffff'
     ctx.font = '700 30px Oswald, Arial, sans-serif'
@@ -237,13 +361,21 @@ async function createCardFaceTexture(
     if (president.endYear === null) {
       ctx.fillStyle = '#e30613'
       ctx.font = '700 16px Oswald, Arial, sans-serif'
-      ctx.fillText('CURRENT PRESIDENT', w / 2, h - 12)
+      ctx.fillText(
+        (president.currentBadge ?? 'CURRENT PRESIDENT').toUpperCase(),
+        w / 2,
+        h - 12,
+      )
     }
   } else {
     ctx.fillStyle = '#d4af37'
     ctx.font = '600 20px Oswald, Arial, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('PRESIDENT OF AL AHLY', w / 2, 90)
+    ctx.fillText(
+      (president.cardEyebrow ?? 'PRESIDENT OF AL AHLY').toUpperCase(),
+      w / 2,
+      90,
+    )
 
     ctx.fillStyle = '#ffffff'
     ctx.font = '700 32px Oswald, Arial, sans-serif'

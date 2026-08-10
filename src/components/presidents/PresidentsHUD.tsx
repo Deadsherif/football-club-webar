@@ -95,13 +95,13 @@ export function PresidentsHUD({
       {/* Selected info panel */}
       {selected && phase === 'selected' && (
         <div className="absolute inset-x-0 bottom-0 z-40 px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto max-h-[42dvh] max-w-lg overflow-y-auto rounded-3xl border border-white/12 bg-[#0a0506]/88 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+          <div className="mx-auto max-h-[min(38dvh,320px)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/12 bg-[#0a0506]/88 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:max-h-[42dvh] sm:p-5">
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="font-title text-[10px] tracking-[0.28em] text-pitch-gold">
                   {copy.presidentsOf}
                 </p>
-                <h2 className="mt-1 font-title text-xl tracking-[0.06em] text-white">
+                <h2 className="mt-1 font-title text-lg tracking-[0.06em] text-white sm:text-xl">
                   {selected.name}
                 </h2>
                 {selected.arabicName && (

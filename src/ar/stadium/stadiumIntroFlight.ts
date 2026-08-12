@@ -46,8 +46,8 @@ export function getJourneySplitLayout(
     // Stacked crest+stadium is taller — keep it a bit smaller than a single crest.
     modelScale: stacked
       ? portrait
-        ? 0.22
-        : 0.26
+        ? 0.17
+        : 0.2
       : compactModel
         ? portrait
           ? 0.2

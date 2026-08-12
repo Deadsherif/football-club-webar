@@ -233,22 +233,23 @@ export class StadiumEnvironment {
 
   /** Small crest above stadium, with a clear vertical margin. */
   private layoutStacked(): void {
-    const stadiumWidth = this.targetWidth
-    const crestWidth = this.targetWidth * 0.36
-    const gap = 0.42
+    const stadiumWidth = this.targetWidth * 0.58
+    const crestWidth = this.targetWidth * 0.26
+    const gap = 0.62
+    const stadiumTopMargin = this.targetWidth * 0.1
     this.resetWraps()
     this.fitWrapToWidth(this.primaryWrap, crestWidth)
     this.fitWrapToWidth(this.alternateWrap, stadiumWidth)
 
     const crestH = this.wrapSizeY(this.primaryWrap)
     const stadiumH = this.wrapSizeY(this.alternateWrap)
-    const total = crestH + gap + stadiumH
+    const total = crestH + gap + stadiumTopMargin + stadiumH
     const stadiumCenterY = stadiumH / 2 - total / 2
-    const crestCenterY = stadiumH + gap + crestH / 2 - total / 2
+    const crestCenterY = stadiumH + gap + stadiumTopMargin + crestH / 2 - total / 2
     this.centerWrapAt(this.alternateWrap, stadiumCenterY)
     this.centerWrapAt(this.primaryWrap, crestCenterY)
     // Keep the logo in front of the bowl so they never sit on the same plane.
-    this.primaryWrap.position.z += 0.12
+    this.primaryWrap.position.z += 0.16
   }
 
   private fitWrapToWidth(wrap: THREE.Group, width: number): void {

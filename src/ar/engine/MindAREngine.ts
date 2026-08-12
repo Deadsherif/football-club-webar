@@ -10,6 +10,7 @@ import type { President } from '@/data/presidents'
 import type { BoardMemberCard } from '@/data/boardMembers'
 import type { RedCastleMember } from '@/data/redCastleMembers'
 import type { TrophyDefinition } from '@/data/trophies'
+import { attachStudioEnvironment } from '@/ar/effects/studioEnvironment'
 import { publicUrl } from '@/utils/publicUrl'
 
 interface InteractiveContentScene {

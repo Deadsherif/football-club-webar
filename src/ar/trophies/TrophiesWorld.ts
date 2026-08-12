@@ -1,4 +1,3 @@
-import * as THREE from 'three'
 import { trophies } from '@/data/trophies'
 import { TrophyObject } from '@/ar/trophies/TrophyObject'
 import { buildTrophyFormation } from '@/ar/trophies/trophyFormation'
@@ -9,16 +8,17 @@ import {
 } from '@/ar/stadium/stadiumExploreFraming'
 import {
   applyStadiumIntroFlight,
-  getJourneySplitLayout,
   resetStadiumIntroFlight,
 } from '@/ar/stadium/stadiumIntroFlight'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
 import { getStadiumViewportFit } from '@/utils/stadiumViewport'
 import { getTrophyLoadBudget } from '@/ar/trophies/trophyBudget'
+import type { Camera } from 'three'
 
 /**
  * Same stadium orientation/lighting as Presidents, with floating trophy GLBs.
  * Models load on demand under a hard resident budget (mobile OOM guard).
+ * Stadium stays centered — no journey left-column split.
  */
 export class TrophiesWorld {
   readonly environment = new StadiumEnvironment()
@@ -32,13 +32,6 @@ export class TrophiesWorld {
   private disposed = false
   /** Currently focused trophy — stale async loads must not evict this. */
   private focusId: string | null = null
-  private journeySplit = false
-  private journeySpin = 0
-  private journeyAutoSpin = true
-  private readonly journeyModelTarget = new THREE.Vector3()
-  private readonly journeyModelCenter = new THREE.Vector3()
-  private readonly _box = new THREE.Box3()
-  private readonly _centerWorld = new THREE.Vector3()
 
   constructor() {
     this.root.name = 'TrophiesWorld'
@@ -129,9 +122,7 @@ export class TrophiesWorld {
 
   setIntroProgress(t: number): void {
     this.environment.setLightIntensity(Math.max(0.65, Math.min(1, t * 1.2)))
-    if (!this.journeySplit) {
-      applyStadiumIntroFlight(this.environment.stadiumRoot, t)
-    }
+    applyStadiumIntroFlight(this.environment.stadiumRoot, t)
     const trophyT = Math.max(0, (t - 0.28) / 0.72)
     const reveal = Math.floor(trophyT * this.trophies.length)
     while (this.revealCount < reveal && this.revealCount < this.trophies.length) {
@@ -142,7 +133,7 @@ export class TrophiesWorld {
     }
     if (t >= 1) {
       this.introDone = true
-      if (!this.journeySplit) resetStadiumIntroFlight(this.environment.stadiumRoot)
+      resetStadiumIntroFlight(this.environment.stadiumRoot)
       for (const obj of this.trophies) {
         obj.group.visible = true
         obj.snapIn()
@@ -166,11 +157,6 @@ export class TrophiesWorld {
 
   update(time: number, delta: number): void {
     this.environment.update(time, delta)
-
-    if (this.journeySplit && this.journeyAutoSpin) {
-      this.journeySpin += delta * 0.35
-      this.placeJourneyModel()
-    }
 
     for (let i = 0; i < this.revealCount; i++) {
       this.trophies[i].update(time, delta)
@@ -200,85 +186,13 @@ export class TrophiesWorld {
     }
   }
 
-  setFocusCamera(camera: THREE.Camera | null): void {
+  setFocusCamera(camera: Camera | null): void {
     for (const obj of this.trophies) obj.setFocusCamera(camera)
-  }
-
-  /**
-   * Journey-only: stadium left + selected trophy right (same layout as presidents).
-   */
-  applyJourneySplit(selectedId: string | null, portrait: boolean): void {
-    if (!selectedId) {
-      this.clearJourneySplit()
-      return
-    }
-
-    const altitude = this.environment.floatingCardAltitude
-    const stadiumRoot = this.environment.stadiumRoot
-    // Readable left-column stadium (same compact scale as crest journey).
-    const layout = getJourneySplitLayout(portrait, true, false)
-    const stage = new THREE.Vector3(layout.itemX, layout.itemY, layout.itemZ)
-
-    stadiumRoot.scale.setScalar(layout.modelScale)
-    stadiumRoot.position.set(0, 0, 0)
-    stadiumRoot.rotation.set(0, 0, 0)
-    this.environment.root.updateMatrixWorld(true)
-    this._box.setFromObject(stadiumRoot)
-    this._box.getCenter(this._centerWorld)
-    this.journeyModelCenter.copy(this._centerWorld)
-    this.environment.root.worldToLocal(this.journeyModelCenter)
-
-    this.journeyModelTarget.set(
-      layout.modelX,
-      altitude + layout.itemY,
-      layout.itemZ,
-    )
-    this.journeySplit = true
-    this.placeJourneyModel()
-
-    for (const obj of this.trophies) {
-      if (obj.trophy.id === selectedId) {
-        obj.setStageHome(stage)
-        obj.configureArFocus(0.08, 0.04)
-        obj.revealForFocus()
-      } else {
-        obj.setStageHome(null)
-        obj.configureArFocus(0.1, 0.05)
-      }
-    }
-  }
-
-  clearJourneySplit(): void {
-    this.journeySplit = false
-    this.journeySpin = 0
-    this.journeyAutoSpin = true
-    resetStadiumIntroFlight(this.environment.stadiumRoot)
-    for (const obj of this.trophies) {
-      obj.setStageHome(null)
-      obj.configureArFocus(0.1, 0.05)
-    }
-  }
-
-  private placeJourneyModel(): void {
-    const root = this.environment.stadiumRoot
-    const c = this.journeyModelCenter
-    const yaw = this.journeySpin
-    const cos = Math.cos(yaw)
-    const sin = Math.sin(yaw)
-    const cx = c.x * cos - c.z * sin
-    const cz = c.x * sin + c.z * cos
-    root.rotation.set(0, yaw, 0)
-    root.position.set(
-      this.journeyModelTarget.x - cx,
-      this.journeyModelTarget.y - c.y,
-      this.journeyModelTarget.z - cz,
-    )
   }
 
   dispose(): void {
     this.disposed = true
     this.focusId = null
-    this.clearJourneySplit()
     for (const obj of this.trophies) obj.dispose()
     this.trophies.length = 0
     this.residentOrder = []

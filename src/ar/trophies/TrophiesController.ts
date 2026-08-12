@@ -169,7 +169,6 @@ export class TrophiesController {
   enterJourneyCabinet(): void {
     this.storyLocked = true
     this.pendingJourneyItemId = null
-    this.world.clearJourneySplit()
     if (
       !this.journeyEntranceDone &&
       this.phase !== 'explore' &&
@@ -265,20 +264,13 @@ export class TrophiesController {
     void audio.play('ui')
 
     // Await model before framing — stops “loaded but invisible” races on mobile.
+    // Keep stadium centered (no left-column journey split).
     void this.world.ensureTrophyModel(trophy.id).then((ok) => {
       if (this.selectedId !== trophy.id) return
-      if (this.storyLocked) {
-        this.world.applyJourneySplit(trophy.id, this.fit.isPortrait)
-      } else {
-        this.world.clearJourneySplit()
-      }
       this.resize()
       this.focusCameraOn(trophy.id)
       requestAnimationFrame(() => {
         if (this.selectedId !== trophy.id) return
-        if (this.storyLocked) {
-          this.world.applyJourneySplit(trophy.id, this.fit.isPortrait)
-        }
         this.focusCameraOn(trophy.id)
         if (ok) this.world.getTrophyById(trophy.id)?.revealForFocus()
       })
@@ -299,7 +291,6 @@ export class TrophiesController {
   clearSelection(): void {
     this.selectedId = null
     this.selectedIndex = -1
-    this.world.clearJourneySplit()
     this.world.setFocus(null, this.hoveredId)
     this.applyExploreFraming(false)
     this.hooks.onSelect?.(null)

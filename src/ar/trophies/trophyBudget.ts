@@ -27,8 +27,8 @@ export function getTrophyLoadBudget(
   if (capability.isMobile) {
     if (capability.tier === 'low') {
       return {
-        maxResidentModels: 1,
-        maxPreload: 1,
+        maxResidentModels: 2,
+        maxPreload: 2,
         preferProceduralStadium: true,
         maxTextureWidth: 512,
         stadiumTextureWidth: 512,
@@ -36,16 +36,16 @@ export function getTrophyLoadBudget(
     }
     if (capability.tier === 'mid') {
       return {
-        maxResidentModels: 2,
-        maxPreload: 1,
+        maxResidentModels: 4,
+        maxPreload: 3,
         preferProceduralStadium: false,
         maxTextureWidth: 768,
         stadiumTextureWidth: 512,
       }
     }
     return {
-      maxResidentModels: 2,
-      maxPreload: 2,
+      maxResidentModels: 6,
+      maxPreload: 4,
       preferProceduralStadium: false,
       maxTextureWidth: 1024,
       stadiumTextureWidth: 768,

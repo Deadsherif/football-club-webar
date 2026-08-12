@@ -79,7 +79,9 @@ export class TrophyObject {
     this.group.position.copy(anim.basePosition)
     this.group.rotation.copy(anim.baseRotation)
     this.baseScale = 1
-    this.modelReady = true
+    // Placeholder only until GLB loads — keep modelReady false so the
+    // cup silhouette stays visible on mobile (1–2 resident models).
+    this.modelReady = false
   }
 
   get hasModel(): boolean {
@@ -114,6 +116,7 @@ export class TrophyObject {
     this.group.remove(this.modelRoot)
     disposeObject3D(this.modelRoot, { textures: false, geometry: false })
     this.modelRoot = null
+    this.modelReady = false
     this.placeholder.visible = true
     this.baseColors.clear()
     this.baseOpacities.clear()
@@ -227,9 +230,7 @@ export class TrophyObject {
       time * 0.15 * (0.15 + this.select * 0.35)
     this.group.rotation.z = this.anim.baseRotation.z
 
-    if (this.modelReady || this.entry < 0.99) {
-      this.group.scale.setScalar(Math.max(0.001, scale))
-    }
+    this.group.scale.setScalar(Math.max(0.001, scale))
 
     // Fully dimmed trophies stay out of the way (no depth / draw cost covering focus).
     const hideForFocus = this.targetDim > 0.5 && this.dim > 0.88

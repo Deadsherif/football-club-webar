@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { trophies } from '@/data/trophies'
 import { TrophyObject } from '@/ar/trophies/TrophyObject'
 import { buildTrophyFormation } from '@/ar/trophies/trophyFormation'
@@ -8,6 +9,7 @@ import {
 } from '@/ar/stadium/stadiumExploreFraming'
 import {
   applyStadiumIntroFlight,
+  getJourneySplitLayout,
   resetStadiumIntroFlight,
 } from '@/ar/stadium/stadiumIntroFlight'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
@@ -28,6 +30,15 @@ export class TrophiesWorld {
   private maxResident = trophies.length
   private preloadTarget = 0
   private disposed = false
+  /** Currently focused trophy — stale async loads must not evict this. */
+  private focusId: string | null = null
+  private journeySplit = false
+  private journeySpin = 0
+  private journeyAutoSpin = true
+  private readonly journeyModelTarget = new THREE.Vector3()
+  private readonly journeyModelCenter = new THREE.Vector3()
+  private readonly _box = new THREE.Box3()
+  private readonly _centerWorld = new THREE.Vector3()
 
   constructor() {
     this.root.name = 'TrophiesWorld'
@@ -67,24 +78,60 @@ export class TrophiesWorld {
     void this.preloadInitial()
   }
 
-  async ensureTrophyModel(id: string): Promise<void> {
-    if (this.disposed) return
+  /**
+   * Load (with retry) and keep resident. Ignores stale completions when the
+   * user has already navigated to another trophy in the journey.
+   */
+  async ensureTrophyModel(id: string): Promise<boolean> {
+    if (this.disposed) return false
     const obj = this.getTrophyById(id)
-    if (!obj) return
+    if (!obj) return false
+
     this.touchResident(id)
     this.evictIfNeeded(id)
-    await obj.ensureModel()
+
+    try {
+      await obj.ensureModel()
+    } catch (error) {
+      console.warn('[TrophiesWorld] Trophy load failed', id, error)
+      return false
+    }
+
     if (this.disposed) {
       obj.unloadModel()
-      return
+      return false
     }
+
+    // Stale request — user moved on; don't steal the resident slot.
+    if (this.focusId && this.focusId !== id) {
+      if (!this.residentOrder.includes(id)) obj.unloadModel()
+      else this.evictIfNeeded(this.focusId)
+      return obj.hasModel
+    }
+
     this.touchResident(id)
     this.evictIfNeeded(id)
+    obj.revealForFocus()
+    return obj.hasModel
+  }
+
+  /** Prefetch neighbour trophies for smoother journey Next/Prev on mobile. */
+  prefetchAround(id: string): void {
+    const index = this.trophies.findIndex((t) => t.trophy.id === id)
+    if (index < 0) return
+    const neighbours = [index - 1, index + 1]
+      .map((i) => this.trophies[i]?.trophy.id)
+      .filter((nid): nid is string => Boolean(nid))
+    for (const nid of neighbours) {
+      void this.ensureTrophyModel(nid).catch(() => undefined)
+    }
   }
 
   setIntroProgress(t: number): void {
     this.environment.setLightIntensity(Math.max(0.65, Math.min(1, t * 1.2)))
-    applyStadiumIntroFlight(this.environment.stadiumRoot, t)
+    if (!this.journeySplit) {
+      applyStadiumIntroFlight(this.environment.stadiumRoot, t)
+    }
     const trophyT = Math.max(0, (t - 0.28) / 0.72)
     const reveal = Math.floor(trophyT * this.trophies.length)
     while (this.revealCount < reveal && this.revealCount < this.trophies.length) {
@@ -95,7 +142,7 @@ export class TrophiesWorld {
     }
     if (t >= 1) {
       this.introDone = true
-      resetStadiumIntroFlight(this.environment.stadiumRoot)
+      if (!this.journeySplit) resetStadiumIntroFlight(this.environment.stadiumRoot)
       for (const obj of this.trophies) {
         obj.group.visible = true
         obj.snapIn()
@@ -120,8 +167,20 @@ export class TrophiesWorld {
   update(time: number, delta: number): void {
     this.environment.update(time, delta)
 
+    if (this.journeySplit && this.journeyAutoSpin) {
+      this.journeySpin += delta * 0.35
+      this.placeJourneyModel()
+    }
+
     for (let i = 0; i < this.revealCount; i++) {
       this.trophies[i].update(time, delta)
+    }
+    // Always update the focused trophy even if intro hasn't revealed the ring yet.
+    if (this.focusId) {
+      const focused = this.getTrophyById(this.focusId)
+      if (focused && this.trophies.indexOf(focused) >= this.revealCount) {
+        focused.update(time, delta)
+      }
     }
   }
 
@@ -130,18 +189,96 @@ export class TrophiesWorld {
   }
 
   setFocus(selectedId: string | null, hoveredId: string | null): void {
+    this.focusId = selectedId
     for (const obj of this.trophies) {
       const isSel = obj.trophy.id === selectedId
       const isHov = obj.trophy.id === hoveredId
       obj.setSelected(isSel)
       obj.setHovered(isHov && !isSel)
       obj.setDimmed(Boolean(selectedId) && !isSel)
+      if (isSel) obj.revealForFocus()
     }
-    if (selectedId) void this.ensureTrophyModel(selectedId)
+  }
+
+  setFocusCamera(camera: THREE.Camera | null): void {
+    for (const obj of this.trophies) obj.setFocusCamera(camera)
+  }
+
+  /**
+   * Journey-only: stadium left + selected trophy right (same layout as presidents).
+   */
+  applyJourneySplit(selectedId: string | null, portrait: boolean): void {
+    if (!selectedId) {
+      this.clearJourneySplit()
+      return
+    }
+
+    const altitude = this.environment.floatingCardAltitude
+    const stadiumRoot = this.environment.stadiumRoot
+    // Readable left-column stadium (same compact scale as crest journey).
+    const layout = getJourneySplitLayout(portrait, true, false)
+    const stage = new THREE.Vector3(layout.itemX, layout.itemY, layout.itemZ)
+
+    stadiumRoot.scale.setScalar(layout.modelScale)
+    stadiumRoot.position.set(0, 0, 0)
+    stadiumRoot.rotation.set(0, 0, 0)
+    this.environment.root.updateMatrixWorld(true)
+    this._box.setFromObject(stadiumRoot)
+    this._box.getCenter(this._centerWorld)
+    this.journeyModelCenter.copy(this._centerWorld)
+    this.environment.root.worldToLocal(this.journeyModelCenter)
+
+    this.journeyModelTarget.set(
+      layout.modelX,
+      altitude + layout.itemY,
+      layout.itemZ,
+    )
+    this.journeySplit = true
+    this.placeJourneyModel()
+
+    for (const obj of this.trophies) {
+      if (obj.trophy.id === selectedId) {
+        obj.setStageHome(stage)
+        obj.configureArFocus(0.08, 0.04)
+        obj.revealForFocus()
+      } else {
+        obj.setStageHome(null)
+        obj.configureArFocus(0.1, 0.05)
+      }
+    }
+  }
+
+  clearJourneySplit(): void {
+    this.journeySplit = false
+    this.journeySpin = 0
+    this.journeyAutoSpin = true
+    resetStadiumIntroFlight(this.environment.stadiumRoot)
+    for (const obj of this.trophies) {
+      obj.setStageHome(null)
+      obj.configureArFocus(0.1, 0.05)
+    }
+  }
+
+  private placeJourneyModel(): void {
+    const root = this.environment.stadiumRoot
+    const c = this.journeyModelCenter
+    const yaw = this.journeySpin
+    const cos = Math.cos(yaw)
+    const sin = Math.sin(yaw)
+    const cx = c.x * cos - c.z * sin
+    const cz = c.x * sin + c.z * cos
+    root.rotation.set(0, yaw, 0)
+    root.position.set(
+      this.journeyModelTarget.x - cx,
+      this.journeyModelTarget.y - c.y,
+      this.journeyModelTarget.z - cz,
+    )
   }
 
   dispose(): void {
     this.disposed = true
+    this.focusId = null
+    this.clearJourneySplit()
     for (const obj of this.trophies) obj.dispose()
     this.trophies.length = 0
     this.residentOrder = []
@@ -167,8 +304,11 @@ export class TrophiesWorld {
   }
 
   private evictIfNeeded(keepId: string): void {
+    const protectedId = this.focusId ?? keepId
     while (this.residentOrder.length > this.maxResident) {
-      const victim = this.residentOrder.find((id) => id !== keepId)
+      const victim = this.residentOrder.find(
+        (id) => id !== keepId && id !== protectedId,
+      )
       if (!victim) break
       this.residentOrder = this.residentOrder.filter((id) => id !== victim)
       this.getTrophyById(victim)?.unloadModel()
@@ -178,7 +318,7 @@ export class TrophiesWorld {
     const loaded = this.trophies.filter((t) => t.hasModel)
     if (loaded.length <= this.maxResident) return
     for (const obj of loaded) {
-      if (obj.trophy.id === keepId) continue
+      if (obj.trophy.id === keepId || obj.trophy.id === protectedId) continue
       if (this.residentOrder.includes(obj.trophy.id)) continue
       obj.unloadModel()
     }

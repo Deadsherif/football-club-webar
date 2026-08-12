@@ -54,6 +54,8 @@ export class TrophyObject {
   private targetEntry = 1
   private stageHome: THREE.Vector3 | null = null
   private readonly homeLocal = new THREE.Vector3()
+  /** Bumped on unload/dispose so in-flight loads discard their result. */
+  private loadGeneration = 0
 
   constructor(trophy: TrophyDefinition, anim: TrophyAnimState) {
     this.trophy = trophy
@@ -98,13 +100,17 @@ export class TrophyObject {
     }
   }
 
-  /** Load the authored GLB once; safe to call repeatedly. */
+  /** Load the authored GLB once; safe to call repeatedly. Retries once on failure. */
   ensureModel(): Promise<void> {
     if (this.disposed) return Promise.resolve()
     if (this.modelRoot) return Promise.resolve()
-    if (this.loadPromise) return this.loadPromise
+    if (this.loadPromise) {
+      // Previous load may have been cancelled by unload — chain a fresh attempt.
+      return this.loadPromise.then(() => this.ensureModel())
+    }
 
-    this.loadPromise = this.loadModel().finally(() => {
+    const generation = this.loadGeneration
+    this.loadPromise = this.loadModelWithRetry(generation).finally(() => {
       this.loadPromise = null
     })
     return this.loadPromise
@@ -112,7 +118,12 @@ export class TrophyObject {
 
   /** Drop the GLB and restore the placeholder to free memory. */
   unloadModel(): void {
-    if (!this.modelRoot) return
+    this.loadGeneration += 1
+    if (!this.modelRoot) {
+      this.modelReady = false
+      this.placeholder.visible = true
+      return
+    }
     this.group.remove(this.modelRoot)
     disposeObject3D(this.modelRoot, { textures: false, geometry: false })
     this.modelRoot = null
@@ -121,6 +132,25 @@ export class TrophyObject {
     this.baseColors.clear()
     this.baseOpacities.clear()
     this.baseEnvIntensity.clear()
+  }
+
+  /** Force the cup into the cabinet after journey select (intro may not have revealed it). */
+  revealForFocus(): void {
+    this.group.visible = true
+    this.snapIn()
+    const targetScale =
+      typeof this.group.userData.targetScale === 'number'
+        ? this.group.userData.targetScale
+        : this.baseScale
+    this.group.scale.setScalar(Math.max(0.01, targetScale))
+    if (this.modelRoot) {
+      this.modelRoot.visible = true
+      this.placeholder.visible = false
+      this.modelReady = true
+    } else {
+      this.placeholder.visible = true
+      this.modelReady = false
+    }
   }
 
   setHovered(on: boolean): void {
@@ -242,6 +272,7 @@ export class TrophyObject {
 
   dispose(): void {
     this.disposed = true
+    this.loadGeneration += 1
     this.unloadModel()
     disposeObject3D(this.placeholder, { textures: true })
     this.hitProxy.geometry.dispose()
@@ -343,11 +374,23 @@ export class TrophyObject {
     })
   }
 
-  private async loadModel(): Promise<void> {
+  private async loadModelWithRetry(generation: number): Promise<void> {
+    try {
+      await this.loadModel(generation)
+    } catch (error) {
+      if (this.disposed || generation !== this.loadGeneration) return
+      console.warn('[TrophyObject] Load failed, retrying once', this.trophy.id, error)
+      await new Promise((r) => setTimeout(r, 280))
+      if (this.disposed || generation !== this.loadGeneration) return
+      await this.loadModel(generation)
+    }
+  }
+
+  private async loadModel(generation: number): Promise<void> {
     const scene = await assetLoader.loadGLB(this.trophy.modelSrc, undefined, {
       maxTextureWidth: this.maxTextureWidth,
     })
-    if (this.disposed) {
+    if (this.disposed || generation !== this.loadGeneration) {
       disposeObject3D(scene, { textures: true })
       return
     }
@@ -367,14 +410,22 @@ export class TrophyObject {
       if (!(obj instanceof THREE.Mesh)) return
       obj.castShadow = false
       obj.receiveShadow = false
+      obj.visible = true
     })
     preserveSourceTextures(scene)
+
+    // Replace any stale attach from a racing load.
+    if (this.modelRoot) {
+      this.group.remove(this.modelRoot)
+      disposeObject3D(this.modelRoot, { textures: false, geometry: false })
+    }
 
     this.placeholder.visible = false
     this.group.add(scene)
     this.modelRoot = scene
     this.baseScale = 1
     this.modelReady = true
+    this.group.visible = true
 
     const hitBox = new THREE.Box3().setFromObject(scene)
     const hitSize = new THREE.Vector3()

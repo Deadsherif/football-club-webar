@@ -194,13 +194,24 @@ export class TrophiesContent {
     if (!obj) return
     this.touchResident(id)
     this.evictIfNeeded(id)
-    await obj.ensureModel()
+    try {
+      await obj.ensureModel()
+    } catch (error) {
+      console.warn('[TrophiesContent] Trophy load failed', id, error)
+      return
+    }
     if (this.disposed || !this.root.visible) {
       obj.unloadModel()
       return
     }
+    // Stale — user selected another trophy while this one was loading.
+    if (this.selectedId && this.selectedId !== id) {
+      this.evictIfNeeded(this.selectedId)
+      return
+    }
     this.touchResident(id)
     this.evictIfNeeded(id)
+    obj.revealForFocus()
   }
 
   private touchResident(id: string): void {
@@ -209,8 +220,11 @@ export class TrophiesContent {
   }
 
   private evictIfNeeded(keepId: string): void {
+    const protectedId = this.selectedId ?? keepId
     while (this.residentOrder.length > this.maxResident) {
-      const victim = this.residentOrder.find((id) => id !== keepId)
+      const victim = this.residentOrder.find(
+        (id) => id !== keepId && id !== protectedId,
+      )
       if (!victim) break
       this.residentOrder = this.residentOrder.filter((id) => id !== victim)
       this.getTrophy(victim)?.unloadModel()

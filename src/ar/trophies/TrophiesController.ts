@@ -169,6 +169,7 @@ export class TrophiesController {
   enterJourneyCabinet(): void {
     this.storyLocked = true
     this.pendingJourneyItemId = null
+    this.world.clearJourneySplit()
     if (
       !this.journeyEntranceDone &&
       this.phase !== 'explore' &&
@@ -254,26 +255,35 @@ export class TrophiesController {
     this.selectedIndex = clamped
     this.selectedId = trophy.id
     const obj = this.world.getTrophyById(trophy.id)
-    if (obj) {
-      const targetScale =
-        typeof obj.group.userData.targetScale === 'number'
-          ? obj.group.userData.targetScale
-          : 1
-      obj.group.scale.setScalar(targetScale)
-    }
+    obj?.revealForFocus()
     this.world.setFocus(this.selectedId, null)
-    void this.world.ensureTrophyModel(trophy.id)
-    this.resize()
-    this.focusCameraOn(trophy.id)
-    requestAnimationFrame(() => {
-      if (this.selectedId !== trophy.id) return
-      this.focusCameraOn(trophy.id)
-    })
+    this.world.setFocusCamera(this.camera)
     this.hooks.onSelect?.(this.selectedId)
     this.hooks.onLabel?.(trophy.nameAr)
     this.setPhase('selected')
     this.transitionBannerUntil = performance.now() + 1200
     void audio.play('ui')
+
+    // Await model before framing — stops “loaded but invisible” races on mobile.
+    void this.world.ensureTrophyModel(trophy.id).then((ok) => {
+      if (this.selectedId !== trophy.id) return
+      if (this.storyLocked) {
+        this.world.applyJourneySplit(trophy.id, this.fit.isPortrait)
+      } else {
+        this.world.clearJourneySplit()
+      }
+      this.resize()
+      this.focusCameraOn(trophy.id)
+      requestAnimationFrame(() => {
+        if (this.selectedId !== trophy.id) return
+        if (this.storyLocked) {
+          this.world.applyJourneySplit(trophy.id, this.fit.isPortrait)
+        }
+        this.focusCameraOn(trophy.id)
+        if (ok) this.world.getTrophyById(trophy.id)?.revealForFocus()
+      })
+      this.world.prefetchAround(trophy.id)
+    })
   }
 
   next(): void {
@@ -289,6 +299,7 @@ export class TrophiesController {
   clearSelection(): void {
     this.selectedId = null
     this.selectedIndex = -1
+    this.world.clearJourneySplit()
     this.world.setFocus(null, this.hoveredId)
     this.applyExploreFraming(false)
     this.hooks.onSelect?.(null)

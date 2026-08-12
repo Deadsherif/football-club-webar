@@ -29,7 +29,8 @@ export function getTrophyLoadBudget(
       return {
         maxResidentModels: 2,
         maxPreload: 2,
-        preferProceduralStadium: true,
+        // Same stadium GLB as PC — keep backdrop position/look identical.
+        preferProceduralStadium: false,
         maxTextureWidth: 512,
         stadiumTextureWidth: 512,
       }

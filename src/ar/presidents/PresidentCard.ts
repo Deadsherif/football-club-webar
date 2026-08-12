@@ -2,6 +2,13 @@ import * as THREE from 'three'
 import type { President } from '@/data/presidents'
 import { ArCardZoom } from '@/ar/engine/ArCardZoom'
 import { yawFacingCamera } from '@/ar/engine/cardFaceCamera'
+import {
+  CARD_FACE_HEIGHT,
+  CARD_FACE_WIDTH,
+  drawCoverPortrait,
+  finishCardTexture,
+  getCachedCardCanvas,
+} from '@/ar/engine/cardPortraitDraw'
 
 const CARD_W = 0.42
 const CARD_H = 0.62
@@ -50,6 +57,8 @@ export class PresidentCard {
   private readonly homeLocal = new THREE.Vector3()
   private readonly lockedHome = new THREE.Vector3()
   private homeLocked = false
+  /** When set, select focus locks here (journey split stage) instead of formation home. */
+  private stageHome: THREE.Vector3 | null = null
   private readonly edge: THREE.LineSegments
   private readonly edgeBaseOpacity: number
 
@@ -123,7 +132,11 @@ export class PresidentCard {
     const wasSelected = this.targetSelect > 0.5
     this.targetSelect = on ? 1 : 0
     // Portrait on first select / deselect; keep flip while staying selected.
-    if (on && !wasSelected) this.targetFlip = 0
+    if (on && !wasSelected) {
+      this.targetFlip = 0
+      // Journey can select before fly-in finishes — snap to rest pose for framing.
+      this.snapIn()
+    }
     if (!on) {
       this.targetFlip = 0
       this.homeLocked = false
@@ -157,9 +170,23 @@ export class PresidentCard {
     this.focusCamera = camera
   }
 
+  /** Pin the selected card to a fixed local pose (journey two-column stage). */
+  setStageHome(pos: THREE.Vector3 | null): void {
+    this.stageHome = pos ? pos.clone() : null
+    this.homeLocked = false
+  }
+
   beginFlyIn(): void {
     this.entry = 0
     this.targetEntry = 1
+  }
+
+  /** Instantly finish entry so select framing uses the final card pose. */
+  snapIn(): void {
+    this.entry = 1
+    this.targetEntry = 1
+    this.homeLocked = false
+    this.group.scale.setScalar(Math.max(0.001, this.baseScale))
   }
 
   update(time: number, delta: number): void {
@@ -194,22 +221,27 @@ export class PresidentCard {
       : Math.sin(time * (this.anim.speed * 0.7) + this.anim.phase) * 0.008
 
     const toward =
-      (this.hover * 0.18 + this.select * 0.12) * this.baseScale * motion
+      (this.hover * 0.18 + this.select * 0.16) * this.baseScale * motion
     const scale =
       this.baseScale *
       this.entry *
-      (1 + this.hover * 0.08 + this.select * 0.1 + breathe)
+      (1 + this.hover * 0.08 + this.select * 0.16 + breathe)
 
-    const entryY = (1 - this.entry) * -0.55 * Math.max(this.baseScale, 0.2)
+    const entryY = (1 - this.entry) * 0.95 * Math.max(this.baseScale, 0.2)
 
     if (focusing) {
       // Freeze home once so damping select / camera motion cannot jitter the card.
       if (!this.homeLocked) {
-        this.lockedHome.set(
-          this.anim.basePosition.x,
-          this.anim.basePosition.y + entryY + 0.12 * this.baseScale,
-          this.anim.basePosition.z,
-        )
+        if (this.stageHome) {
+          this.lockedHome.copy(this.stageHome)
+        } else {
+          // Always lock the final rest pose (ignore mid-entry offset).
+          this.lockedHome.set(
+            this.anim.basePosition.x,
+            this.anim.basePosition.y + 0.12 * this.baseScale,
+            this.anim.basePosition.z,
+          )
+        }
         this.homeLocked = true
       }
       this.homeLocal.copy(this.lockedHome)
@@ -245,24 +277,40 @@ export class PresidentCard {
       this.group,
       this.focusCamera,
       delta,
-      this.baseScale * this.entry * (1 + (focusing ? 0.04 : this.select * 0.06)),
+      this.baseScale * this.entry * (1 + (focusing ? 0.1 : this.select * 0.08)),
       this.homeLocal,
       this.flip,
     )
 
+    // Same as trophies: fade others fully out so they cannot cover the selected card.
     const frontMat = this.meshFront.material as THREE.MeshBasicMaterial
     const backMat = this.meshBack.material as THREE.MeshBasicMaterial
     const glowMat = this.glow.material as THREE.MeshBasicMaterial
     const edgeMat = this.edge.material as THREE.LineBasicMaterial
 
-    this.brightness = 1 - this.dim * 0.72
-    const faceOpacity = 1 - this.dim * 0.78
+    this.brightness = 1 - this.dim * 0.88
+    const faceOpacity = Math.max(0, 1 - this.dim)
+    const writeDepth = this.dim < 0.04
+    const selected = this.targetSelect > 0.5 || this.select > 0.2
+    const hideForFocus = this.targetDim > 0.5 && this.dim > 0.88
+
+    this.group.renderOrder = selected ? 20 : this.dim > 0.2 ? -5 : 0
+    this.meshFront.renderOrder = this.group.renderOrder
+    this.meshBack.renderOrder = this.group.renderOrder
+    this.edge.renderOrder = this.group.renderOrder
+    this.glow.renderOrder = this.group.renderOrder
+
+    this.meshFront.visible = !hideForFocus
+    this.meshBack.visible = !hideForFocus
+    this.edge.visible = !hideForFocus
+    this.glow.visible = !hideForFocus
+
     frontMat.color.setScalar(this.brightness)
     backMat.color.setScalar(this.brightness)
     frontMat.opacity = faceOpacity
     backMat.opacity = faceOpacity
-    frontMat.depthWrite = faceOpacity > 0.85
-    backMat.depthWrite = faceOpacity > 0.85
+    frontMat.depthWrite = writeDepth && faceOpacity > 0.92
+    backMat.depthWrite = writeDepth && faceOpacity > 0.92
     edgeMat.opacity = this.edgeBaseOpacity * faceOpacity
 
     const isCurrent = this.president.endYear === null
@@ -271,7 +319,7 @@ export class PresidentCard {
         this.hover * 0.04 +
         this.select * 0.08 +
         this.arZoom.value * 0.1) *
-      (1 - this.dim * 0.92)
+      (1 - this.dim)
   }
 
   dispose(): void {
@@ -311,8 +359,28 @@ async function createCardFaceTexture(
   president: President,
   side: 'front' | 'back',
 ): Promise<THREE.CanvasTexture> {
-  const w = 512
-  const h = 768
+  const canvas = await getCachedCardCanvas(
+    `card:${president.id}:${side}`,
+    () => paintPresidentFace(president, side),
+  )
+  return finishCardTexture(canvas)
+}
+
+export async function warmPresidentCardFaces(
+  people: readonly President[],
+): Promise<void> {
+  for (const person of people) {
+    await createCardFaceTexture(person, 'front')
+    await createCardFaceTexture(person, 'back')
+  }
+}
+
+async function paintPresidentFace(
+  president: President,
+  side: 'front' | 'back',
+): Promise<HTMLCanvasElement> {
+  const w = CARD_FACE_WIDTH
+  const h = CARD_FACE_HEIGHT
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -328,135 +396,83 @@ async function createCardFaceTexture(
 
   // Gold frame
   ctx.strokeStyle = president.endYear === null ? '#e30613' : '#d4af37'
-  ctx.lineWidth = 14
-  ctx.strokeRect(18, 18, w - 36, h - 36)
+  ctx.lineWidth = 10
+  ctx.strokeRect(14, 14, w - 28, h - 28)
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'
-  ctx.lineWidth = 3
-  ctx.strokeRect(32, 32, w - 64, h - 64)
+  ctx.lineWidth = 2
+  ctx.strokeRect(24, 24, w - 48, h - 48)
 
   if (side === 'front') {
-    // Full-bleed poster crop (already framed in gold/red)
-    await drawPortrait(ctx, president.portrait, 28, 28, w - 56, h - 160)
+    await drawCoverPortrait(ctx, president.portrait, 22, 22, w - 44, h - 120, {
+      radius: 12,
+    })
 
     ctx.fillStyle = 'rgba(10,5,6,0.72)'
-    ctx.fillRect(28, h - 150, w - 56, 122)
+    ctx.fillRect(22, h - 112, w - 44, 92)
 
     ctx.fillStyle = '#d4af37'
-    ctx.font = '600 18px Oswald, Arial, sans-serif'
+    ctx.font = '600 14px Oswald, Arial, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(
       (president.cardEyebrow ?? 'PRESIDENT OF AL AHLY').toUpperCase(),
       w / 2,
-      h - 115,
+      h - 86,
     )
 
     ctx.fillStyle = '#ffffff'
-    ctx.font = '700 30px Oswald, Arial, sans-serif'
-    wrapText(ctx, president.name.toUpperCase(), w / 2, h - 78, w - 80, 32)
+    ctx.font = '700 22px Oswald, Arial, sans-serif'
+    wrapText(ctx, president.name.toUpperCase(), w / 2, h - 58, w - 60, 24)
 
     ctx.fillStyle = 'rgba(255,255,255,0.8)'
-    ctx.font = '500 22px Oswald, Arial, sans-serif'
-    ctx.fillText(president.yearsLabel, w / 2, h - 38)
+    ctx.font = '500 16px Oswald, Arial, sans-serif'
+    ctx.fillText(president.yearsLabel, w / 2, h - 28)
 
     if (president.endYear === null) {
       ctx.fillStyle = '#e30613'
-      ctx.font = '700 16px Oswald, Arial, sans-serif'
+      ctx.font = '700 12px Oswald, Arial, sans-serif'
       ctx.fillText(
         (president.currentBadge ?? 'CURRENT PRESIDENT').toUpperCase(),
         w / 2,
-        h - 12,
+        h - 10,
       )
     }
   } else {
     ctx.fillStyle = '#d4af37'
-    ctx.font = '600 20px Oswald, Arial, sans-serif'
+    ctx.font = '600 15px Oswald, Arial, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(
       (president.cardEyebrow ?? 'PRESIDENT OF AL AHLY').toUpperCase(),
       w / 2,
-      90,
+      68,
     )
 
     ctx.fillStyle = '#ffffff'
-    ctx.font = '700 32px Oswald, Arial, sans-serif'
-    wrapText(ctx, president.name.toUpperCase(), w / 2, 140, w - 80, 34)
+    ctx.font = '700 24px Oswald, Arial, sans-serif'
+    wrapText(ctx, president.name.toUpperCase(), w / 2, 105, w - 60, 26)
 
     ctx.fillStyle = 'rgba(255,255,255,0.7)'
-    ctx.font = '500 24px Oswald, Arial, sans-serif'
-    ctx.fillText(president.yearsLabel, w / 2, 220)
+    ctx.font = '500 18px Oswald, Arial, sans-serif'
+    ctx.fillText(president.yearsLabel, w / 2, 165)
 
     ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = '400 20px Manrope, Arial, sans-serif'
-    wrapText(ctx, president.description, w / 2, 290, w - 90, 28)
+    ctx.font = '400 15px Manrope, Arial, sans-serif'
+    wrapText(ctx, president.description, w / 2, 220, w - 68, 22)
 
     if (president.achievements?.length) {
       ctx.fillStyle = '#d4af37'
-      ctx.font = '600 18px Oswald, Arial, sans-serif'
-      ctx.fillText('KEY MOMENTS', w / 2, 520)
+      ctx.font = '600 14px Oswald, Arial, sans-serif'
+      ctx.fillText('KEY MOMENTS', w / 2, 390)
       ctx.fillStyle = 'rgba(255,255,255,0.75)'
-      ctx.font = '400 18px Manrope, Arial, sans-serif'
-      let y = 560
+      ctx.font = '400 14px Manrope, Arial, sans-serif'
+      let y = 420
       for (const a of president.achievements.slice(0, 3)) {
-        wrapText(ctx, `• ${a}`, w / 2, y, w - 100, 24)
-        y += 48
+        wrapText(ctx, `• ${a}`, w / 2, y, w - 76, 18)
+        y += 36
       }
     }
   }
 
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.anisotropy = 4
-  tex.needsUpdate = true
-  return tex
-}
-
-function drawPortrait(
-  ctx: CanvasRenderingContext2D,
-  src: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): Promise<void> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      ctx.save()
-      roundRect(ctx, x, y, w, h, 16)
-      ctx.clip()
-      ctx.drawImage(img, x, y, w, h)
-      ctx.restore()
-      ctx.strokeStyle = 'rgba(212,175,55,0.55)'
-      ctx.lineWidth = 4
-      roundRect(ctx, x, y, w, h, 16)
-      ctx.stroke()
-      resolve()
-    }
-    img.onerror = () => {
-      ctx.fillStyle = '#2a0a0c'
-      roundRect(ctx, x, y, w, h, 16)
-      ctx.fill()
-      resolve()
-    }
-    img.src = src
-  })
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
+  return canvas
 }
 
 function wrapText(

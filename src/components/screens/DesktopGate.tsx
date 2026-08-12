@@ -4,15 +4,18 @@ interface DesktopGateProps {
   url: string
   onPreviewInteractive?: () => void
   onStartAR?: () => void
+  onStartJourneyScan?: () => void
+  onStartJourneyDirect?: () => void
 }
 
 export function DesktopGate({
   url,
   onPreviewInteractive,
   onStartAR,
+  onStartJourneyScan,
+  onStartJourneyDirect,
 }: DesktopGateProps) {
   const copy = t()
-  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`
 
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-8 text-center">
@@ -24,26 +27,37 @@ export function DesktopGate({
           {copy.desktopTitle}
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-white/65">{copy.desktopBody}</p>
-        <img
-          src={qr}
-          alt="QR code"
-          className="mx-auto mt-8 rounded-2xl border border-white/10 bg-white p-3"
-          width={220}
-          height={220}
-        />
-        <p className="mt-4 break-all text-xs text-white/40">{url}</p>
+        <p className="mt-6 break-all text-xs text-white/40">{url}</p>
         <p className="mt-6 text-xs uppercase tracking-[0.2em] text-white/35">
           {copy.desktopHint}
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
+          {onStartJourneyScan && (
+            <button
+              type="button"
+              onClick={onStartJourneyScan}
+              className="min-h-12 rounded-full bg-gradient-to-br from-ahly-red to-ahly-crimson px-6 text-xs font-bold tracking-[0.14em] text-white"
+            >
+              {copy.journeyStartCta}
+            </button>
+          )}
           {onStartAR && (
             <button
               type="button"
               onClick={onStartAR}
-              className="min-h-12 rounded-full bg-ahly-red px-6 text-xs font-bold tracking-[0.18em] text-white"
+              className="min-h-12 rounded-full border border-white/25 bg-black/35 px-6 text-xs font-bold tracking-[0.14em] text-white"
             >
               {copy.startExperience}
+            </button>
+          )}
+          {onStartJourneyDirect && (
+            <button
+              type="button"
+              onClick={onStartJourneyDirect}
+              className="min-h-12 rounded-full border border-pitch-gold/35 bg-pitch-gold/10 px-6 text-xs font-semibold tracking-[0.14em] text-pitch-gold"
+            >
+              {copy.journeyDirectCta}
             </button>
           )}
           {onPreviewInteractive && (

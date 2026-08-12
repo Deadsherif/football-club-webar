@@ -173,7 +173,7 @@ export class LegendsContent {
       anim.basePosition.y += 0.04 + (index % 3) * 0.015
       const card = new PlayerCard3D(player, anim)
       card.baseScale = this.cardScale
-      card.configureArFocus(0.35, 0.22)
+      card.configureArFocus(0.18, 0.14)
       card.setFocusCamera(this.camera)
       card.beginFlyIn()
       card.group.visible = false

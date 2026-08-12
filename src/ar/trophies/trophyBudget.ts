@@ -9,14 +9,17 @@ export interface TrophyLoadBudget {
   maxResidentModels: number
   /** How many models to preload after setup (before user selects). */
   maxPreload: number
-  /** Skip the heavy stadium GLB and use the procedural bowl. */
+  /** Skip the heavy stadium GLB and use the procedural bowl (low-end only). */
   preferProceduralStadium: boolean
-  /** Cap embedded GLB texture decode width. */
+  /** Cap embedded trophy GLB texture decode width. */
   maxTextureWidth: number
+  /** Cap stadium backdrop textures on mobile. */
+  stadiumTextureWidth: number
 }
 
 /**
- * Trophy GLBs are ~20–40MB each. Mobile tabs die if we load the cabinet eagerly.
+ * Trophy GLBs are ~20–40MB each. Mobile keeps a tiny resident set,
+ * but still loads the stadium GLB on mid/high phones (downscaled textures).
  */
 export function getTrophyLoadBudget(
   capability: DeviceCapability = detectDeviceCapability(),
@@ -28,21 +31,24 @@ export function getTrophyLoadBudget(
         maxPreload: 1,
         preferProceduralStadium: true,
         maxTextureWidth: 512,
+        stadiumTextureWidth: 512,
       }
     }
     if (capability.tier === 'mid') {
       return {
         maxResidentModels: 2,
         maxPreload: 1,
-        preferProceduralStadium: true,
+        preferProceduralStadium: false,
         maxTextureWidth: 768,
+        stadiumTextureWidth: 512,
       }
     }
     return {
       maxResidentModels: 2,
       maxPreload: 2,
-      preferProceduralStadium: true,
+      preferProceduralStadium: false,
       maxTextureWidth: 1024,
+      stadiumTextureWidth: 768,
     }
   }
 
@@ -52,6 +58,7 @@ export function getTrophyLoadBudget(
       maxPreload: 4,
       preferProceduralStadium: false,
       maxTextureWidth: 1536,
+      stadiumTextureWidth: 1024,
     }
   }
 
@@ -60,5 +67,6 @@ export function getTrophyLoadBudget(
     maxPreload: trophies.length,
     preferProceduralStadium: false,
     maxTextureWidth: 2048,
+    stadiumTextureWidth: 2048,
   }
 }

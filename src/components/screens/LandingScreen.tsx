@@ -1,13 +1,15 @@
 import { t } from '@/i18n'
 
 interface LandingScreenProps {
-  onStart: () => void
+  onStartAr: () => void
+  onStartJourneyScan: () => void
   onContinueInteractive?: () => void
   crestSrc: string
 }
 
 export function LandingScreen({
-  onStart,
+  onStartAr,
+  onStartJourneyScan,
   onContinueInteractive,
   crestSrc,
 }: LandingScreenProps) {
@@ -24,7 +26,7 @@ export function LandingScreen({
             <img
               src={crestSrc}
               alt={copy.brand}
-              className="h-28 w-28 object-contain sm:h-36 sm:w-36"
+              className="h-20 w-20 object-contain sm:h-24 sm:w-24"
               draggable={false}
             />
           </div>
@@ -43,8 +45,16 @@ export function LandingScreen({
         <div className="mt-10 flex w-full max-w-xs flex-col gap-3">
           <button
             type="button"
-            onClick={onStart}
-            className="min-h-14 w-full rounded-full bg-ahly-red px-8 py-4 text-sm font-bold tracking-[0.2em] text-white shadow-[0_16px_48px_rgba(227,6,19,0.4)] transition active:scale-[0.98]"
+            onClick={onStartJourneyScan}
+            className="min-h-14 w-full rounded-full bg-gradient-to-br from-ahly-red to-ahly-crimson px-8 py-4 text-sm font-bold tracking-[0.14em] text-white shadow-[0_16px_48px_rgba(227,6,19,0.45)] transition active:scale-[0.98]"
+          >
+            {copy.journeyStartCta}
+          </button>
+
+          <button
+            type="button"
+            onClick={onStartAr}
+            className="min-h-12 w-full rounded-full border border-white/25 bg-black/40 px-8 py-3 text-xs font-semibold tracking-[0.14em] text-white/90 backdrop-blur-sm transition active:scale-[0.98]"
           >
             {copy.startExperience}
           </button>
@@ -53,15 +63,19 @@ export function LandingScreen({
             <button
               type="button"
               onClick={onContinueInteractive}
-              className="min-h-12 w-full rounded-full border border-white/20 bg-black/35 px-6 py-3 text-xs font-semibold tracking-[0.16em] text-white/80 backdrop-blur-sm transition active:scale-[0.98]"
+              className="min-h-12 w-full rounded-full border border-white/15 bg-black/25 px-6 py-3 text-[11px] font-semibold tracking-[0.16em] text-white/70 backdrop-blur-sm transition active:scale-[0.98]"
             >
               {copy.continueInteractive}
             </button>
           )}
         </div>
 
+        <p className="mt-4 max-w-xs text-[11px] leading-relaxed tracking-[0.04em] text-white/45">
+          {copy.journeyStartHint}
+        </p>
+
         <p className="mt-5 text-xs tracking-[0.18em] text-white/40 uppercase">
-          {copy.immersiveHint}
+          {copy.scanCrestArHint}
         </p>
       </main>
     </div>

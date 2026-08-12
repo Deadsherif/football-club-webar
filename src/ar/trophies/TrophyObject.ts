@@ -50,6 +50,10 @@ export class TrophyObject {
   private focusScaleBoost = 0.1
   private focusPull = 0
   private maxTextureWidth = 2048
+  private entry = 1
+  private targetEntry = 1
+  private stageHome: THREE.Vector3 | null = null
+  private readonly homeLocal = new THREE.Vector3()
 
   constructor(trophy: TrophyDefinition, anim: TrophyAnimState) {
     this.trophy = trophy
@@ -108,13 +112,12 @@ export class TrophyObject {
   unloadModel(): void {
     if (!this.modelRoot) return
     this.group.remove(this.modelRoot)
-    disposeObject3D(this.modelRoot, { textures: true })
+    disposeObject3D(this.modelRoot, { textures: false, geometry: false })
     this.modelRoot = null
     this.placeholder.visible = true
     this.baseColors.clear()
     this.baseOpacities.clear()
     this.baseEnvIntensity.clear()
-    assetLoader.release(this.trophy.modelSrc)
   }
 
   setHovered(on: boolean): void {
@@ -131,6 +134,21 @@ export class TrophyObject {
 
   setFocusCamera(camera: THREE.Camera | null): void {
     this.focusCamera = camera
+  }
+
+  /** Pin selected trophy to journey split stage. */
+  setStageHome(pos: THREE.Vector3 | null): void {
+    this.stageHome = pos ? pos.clone() : null
+  }
+
+  beginFlyIn(): void {
+    this.entry = 0
+    this.targetEntry = 1
+  }
+
+  snapIn(): void {
+    this.entry = 1
+    this.targetEntry = 1
   }
 
   /** Stronger select zoom for crest AR (camera cannot dolly). */
@@ -150,6 +168,7 @@ export class TrophyObject {
     this.hover = THREE.MathUtils.damp(this.hover, this.targetHover, 8, delta)
     this.select = THREE.MathUtils.damp(this.select, this.targetSelect, 5, delta)
     this.dim = THREE.MathUtils.damp(this.dim, this.targetDim, 7, delta)
+    this.entry = THREE.MathUtils.damp(this.entry, this.targetEntry, 2.8, delta)
 
     const focusing = this.targetSelect > 0.5 || this.select > 0.08
     const motion = focusing ? 0 : 1
@@ -170,19 +189,25 @@ export class TrophyObject {
         : this.baseScale
     const scale =
       base *
+      Math.max(0.01, this.entry) *
       (1 + this.hover * 0.08 + this.select * this.focusScaleBoost + breathe)
 
-    this.group.position.x = this.anim.basePosition.x
-    this.group.position.y =
-      this.anim.basePosition.y + floatY + this.select * 0.08
-    this.group.position.z = this.anim.basePosition.z + toward
+    const entryY = (1 - this.entry) * 1.05
+    if (focusing && this.stageHome) {
+      this.homeLocal.copy(this.stageHome)
+    } else {
+      this.homeLocal.set(
+        this.anim.basePosition.x,
+        this.anim.basePosition.y + entryY + (focusing ? this.select * 0.08 : 0),
+        this.anim.basePosition.z + toward,
+      )
+    }
+
+    this.group.position.copy(this.homeLocal)
+    if (!focusing) this.group.position.y += floatY
 
     if (focusing && this.focusPull > 0 && this.focusCamera && this.group.parent) {
-      _homeWorld.set(
-        this.anim.basePosition.x,
-        this.anim.basePosition.y + this.select * 0.08,
-        this.anim.basePosition.z,
-      )
+      _homeWorld.copy(this.group.position)
       this.group.parent.localToWorld(_homeWorld)
       this.focusCamera.getWorldPosition(_camWorld)
       _pulled.subVectors(_camWorld, _homeWorld)
@@ -202,9 +227,14 @@ export class TrophyObject {
       time * 0.15 * (0.15 + this.select * 0.35)
     this.group.rotation.z = this.anim.baseRotation.z
 
-    if (this.modelReady) {
+    if (this.modelReady || this.entry < 0.99) {
       this.group.scale.setScalar(Math.max(0.001, scale))
     }
+
+    // Fully dimmed trophies stay out of the way (no depth / draw cost covering focus).
+    const hideForFocus = this.targetDim > 0.5 && this.dim > 0.88
+    if (this.modelRoot) this.modelRoot.visible = !hideForFocus
+    this.placeholder.visible = !this.modelReady && !hideForFocus
 
     this.applyDim()
   }
@@ -261,12 +291,20 @@ export class TrophyObject {
   }
 
   private applyDim(): void {
-    const brightness = 1 - this.dim * 0.7
-    const opacity = 1 - this.dim * 0.78
-    const envScale = 1 - this.dim * 0.85
+    // Fade all the way out so dimmed trophies cannot cover the selected one
+    // (semi-transparent meshes still occlude when depthWrite stays on).
+    const brightness = 1 - this.dim * 0.88
+    const opacity = Math.max(0, 1 - this.dim)
+    const envScale = 1 - this.dim * 0.92
+    const writeDepth = this.dim < 0.04
+    const selected = this.targetSelect > 0.5 || this.select > 0.2
+
+    this.group.renderOrder = selected ? 20 : this.dim > 0.2 ? -5 : 0
+    this.hitProxy.visible = this.dim < 0.5
 
     this.group.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh) || obj === this.hitProxy) return
+      obj.renderOrder = this.group.renderOrder
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
       for (const mat of mats) {
         if (!mat) continue
@@ -285,7 +323,8 @@ export class TrophyObject {
           const baseOpacity = this.baseOpacities.get(mat) ?? 1
           mat.transparent = true
           mat.opacity = baseOpacity * opacity
-          mat.depthWrite = mat.opacity > 0.85
+          mat.depthWrite = writeDepth && mat.opacity > 0.92
+          mat.depthTest = true
           mat.needsUpdate = true
         }
 
@@ -306,8 +345,6 @@ export class TrophyObject {
   private async loadModel(): Promise<void> {
     const scene = await assetLoader.loadGLB(this.trophy.modelSrc, undefined, {
       maxTextureWidth: this.maxTextureWidth,
-      // Instance owns GPU memory; do not keep a second parsed copy forever.
-      cache: false,
     })
     if (this.disposed) {
       disposeObject3D(scene, { textures: true })

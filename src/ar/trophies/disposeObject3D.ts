@@ -20,15 +20,20 @@ const TEXTURE_KEYS = [
  */
 export function disposeObject3D(
   root: THREE.Object3D,
-  options: { textures?: boolean } = { textures: true },
+  options: { textures?: boolean; geometry?: boolean } = {
+    textures: true,
+    geometry: true,
+  },
 ): void {
+  const disposeTextures = options.textures !== false
+  const disposeGeometry = options.geometry !== false
   root.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return
-    obj.geometry?.dispose()
+    if (disposeGeometry) obj.geometry?.dispose()
     const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
     for (const mat of materials) {
       if (!mat) continue
-      if (options.textures !== false) {
+      if (disposeTextures) {
         for (const key of TEXTURE_KEYS) {
           const tex = (mat as unknown as Record<string, unknown>)[key]
           if (tex instanceof THREE.Texture) tex.dispose()

@@ -10,8 +10,10 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 // Default: HTTP (no cert errors on localhost).
 // Mobile camera / remote devices: npm run dev:https
 const useHttps = process.env.VITE_HTTPS === 'true'
+const base = process.env.VITE_BASE || '/'
 
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss(), ...(useHttps ? [basicSsl()] : [])],
   resolve: {
     alias: {

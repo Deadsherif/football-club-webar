@@ -213,6 +213,15 @@
     animation: scan-pulse 2.8s ease-in-out infinite;
   }
 
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   @keyframes scan-pulse {
     0%,
     100% {

@@ -1,6 +1,7 @@
 /**
  * Stadium framing tuned for phone portrait vs tablet/desktop.
  * Portrait phones clip side cards unless FOV widens and the formation tightens.
+ * Sized so focused cards sit between journey top tabs and bottom transport.
  */
 export interface StadiumViewportFit {
   fov: number
@@ -25,13 +26,13 @@ export function getStadiumViewportFit(
   if (isNarrowPhone) {
     return {
       fov: 68,
-      cameraDistance: 5.8,
-      cameraHeight: 1.55,
-      lookHeight: 0.95,
-      formationScale: 0.62,
-      cardScale: 0.82,
-      minDistance: 2.4,
-      maxDistance: 10,
+      cameraDistance: 7.0,
+      cameraHeight: 0.55,
+      lookHeight: 0.2,
+      formationScale: 0.58,
+      cardScale: 1.0,
+      minDistance: 2.6,
+      maxDistance: 14,
       isPortrait: true,
     }
   }
@@ -39,26 +40,26 @@ export function getStadiumViewportFit(
   if (isPortrait) {
     return {
       fov: 60,
-      cameraDistance: 5.2,
-      cameraHeight: 1.4,
-      lookHeight: 0.95,
-      formationScale: 0.72,
-      cardScale: 0.9,
-      minDistance: 2.2,
-      maxDistance: 9,
+      cameraDistance: 6.4,
+      cameraHeight: 0.5,
+      lookHeight: 0.2,
+      formationScale: 0.68,
+      cardScale: 1.1,
+      minDistance: 2.4,
+      maxDistance: 13,
       isPortrait: true,
     }
   }
 
   return {
     fov: 50,
-    cameraDistance: 4.2,
-    cameraHeight: 1.2,
-    lookHeight: 0.9,
-    formationScale: 1,
-    cardScale: 1,
-    minDistance: 1.8,
-    maxDistance: 8,
+    cameraDistance: 5.8,
+    cameraHeight: 0.45,
+    lookHeight: 0.2,
+    formationScale: 0.95,
+    cardScale: 1.15,
+    minDistance: 2.2,
+    maxDistance: 12,
     isPortrait: false,
   }
 }

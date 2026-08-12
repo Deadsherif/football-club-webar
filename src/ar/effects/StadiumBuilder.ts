@@ -44,14 +44,16 @@ export function buildProceduralStadium(): THREE.Group {
 
   // Bowl stands — four trapezoid banks
   const standMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1f2a,
+    color: 0x2a3344,
     roughness: 0.7,
     metalness: 0.15,
   })
   const seatMat = new THREE.MeshStandardMaterial({
-    color: 0xb01018,
-    roughness: 0.6,
+    color: 0xd0121c,
+    roughness: 0.55,
     metalness: 0.05,
+    emissive: 0x4a0508,
+    emissiveIntensity: 0.15,
   })
 
   addStand(root, standMat, seatMat, 0, 0.42, 1.15, 0.22, 0.28, 0)

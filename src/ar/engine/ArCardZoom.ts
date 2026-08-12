@@ -12,10 +12,10 @@ export class ArCardZoom {
   private amount = 0
   private target = 0
 
-  /** How much larger the selected card grows (1 = +100%). Keep mild so HUD text stays clear. */
-  focusScaleBoost = 0.08
-  /** How far (world units) the card pulls toward the lens when focused. AR sets this higher. */
-  focusPull = 0
+  /** How much larger the selected card grows (1 = +100%). */
+  focusScaleBoost = 0.16
+  /** How far (world units) the card pulls toward the lens when focused. */
+  focusPull = 0.14
 
   setActive(active: boolean): void {
     this.target = active ? 1 : 0

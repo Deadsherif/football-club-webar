@@ -21,6 +21,16 @@ export const CLUB_CREST_SCENE: SceneDefinition = {
   modelSrc: '/models/stadium.glb',
 }
 
+/** Textured crest used as the presidents cabinet backdrop (except stadium legends). */
+export const PRESIDENTS_CREST_MODEL_SRC = '/models/club-crest.glb'
+
+/** These presidents show the Al Ahly crest stacked above the stadium. */
+export const PRESIDENTS_STADIUM_BACKDROP_IDS = [
+  'saleh-selim',
+  'hassan-hamdy',
+  'mahmoud-el-khatib',
+] as const
+
 export const SCENES: Record<string, SceneDefinition> = {
   [CLUB_CREST_SCENE.id]: CLUB_CREST_SCENE,
 }

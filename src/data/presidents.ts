@@ -2,8 +2,7 @@
  * Al Ahly SC presidents — names & years from the Korabia historical poster
  * (رؤساء النادي الأهلي عبر التاريخ) plus public club records.
  *
- * Portraits cropped from: public/assets/presidents/_source-poster.png
- * Replace any file with higher-res official photography when available.
+ * Portraits sourced from Images/ (synced into public/assets/presidents).
  */
 
 export interface President {
@@ -84,9 +83,9 @@ export const presidents: President[] = [
     yearsLabel: '1940 — 1941',
     portrait: '/assets/presidents/anwar.jpg',
     description:
-      'Acting president between Gaafar Waly Pasha’s two terms (1940–1941). Also remembered as Al Ahly’s first football team captain. No verified historical photograph is available in the club archive source used for other presidents.',
+      'Acting president between Gaafar Waly Pasha’s two terms (1940–1941). Also remembered as Al Ahly’s first football team captain.',
     achievements: ['Acting club president 1940–1941', 'First Al Ahly football captain'],
-    source: 'Club historical records (portrait unavailable on Korabia presidents poster)',
+    source: 'Club historical records; Korabia presidents list',
   },
   {
     id: 'ahmed-hasanein',

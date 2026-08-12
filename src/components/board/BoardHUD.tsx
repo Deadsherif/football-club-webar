@@ -91,8 +91,8 @@ export function BoardHUD({
       )}
 
       {selected && phase === 'selected' && (
-        <div className="absolute inset-x-0 bottom-0 z-40 px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto max-h-[min(38dvh,320px)] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/12 bg-[#0a0506]/88 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:max-h-[42dvh] sm:p-5">
+        <div className="absolute top-[max(4.5rem,calc(env(safe-area-inset-top)+3.8rem))] right-3 z-40 w-[min(22rem,calc(100vw-1.5rem))]">
+          <div className="max-h-[min(48dvh,360px)] w-full overflow-y-auto rounded-3xl border border-white/12 bg-[#0a0506]/88 p-4 text-start shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[10px] tracking-[0.2em] text-pitch-gold">

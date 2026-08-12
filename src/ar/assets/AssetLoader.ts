@@ -4,6 +4,7 @@ import { ImageBitmapLoader } from 'three'
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Object3D } from 'three'
 import type { AssetLoadProgress } from '@/types/ar'
+import { fetchCachedBuffer, prefetchUrl } from '@/ar/assets/httpAssetCache'
 
 export type ProgressCallback = (progress: AssetLoadProgress) => void
 
@@ -268,9 +269,12 @@ export class AssetLoader {
       cache: useCache,
       maxTextureWidth,
     })
-    if (useCache) return gltf.scene.clone(true)
-    // Caller owns the only copy — avoid doubling heap with clone+cache.
-    return gltf.scene
+    return this.instantiate(gltf.scene)
+  }
+
+  /** Download into Cache Storage + memory so the next parse skips the network. */
+  prefetch(url: string): Promise<void> {
+    return prefetchUrl(url)
   }
 
   private loadGltf(
@@ -320,44 +324,14 @@ export class AssetLoader {
     activeMaxTextureWidth = options?.maxTextureWidth ?? 2048
     installSafeImageBitmapPatch()
     try {
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`)
-      }
-
-      const totalHeader = Number(response.headers.get('content-length') || 0)
-      const reader = response.body?.getReader()
-      let buffer: ArrayBuffer
-
-      if (reader) {
-        const chunks: Uint8Array[] = []
-        let loaded = 0
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (value) {
-            chunks.push(value)
-            loaded += value.byteLength
-            if (totalHeader > 0) {
-              onProgress?.({
-                loaded,
-                total: totalHeader,
-                url,
-                ratio: Math.min(1, loaded / totalHeader),
-              })
-            }
-          }
-        }
-        const merged = new Uint8Array(loaded)
-        let offset = 0
-        for (const chunk of chunks) {
-          merged.set(chunk, offset)
-          offset += chunk.byteLength
-        }
-        buffer = merged.buffer
-      } else {
-        buffer = await response.arrayBuffer()
-      }
+      const buffer = await fetchCachedBuffer(url, (loaded, total) => {
+        onProgress?.({
+          loaded,
+          total,
+          url,
+          ratio: Math.min(1, loaded / total),
+        })
+      })
 
       const loader = new GLTFLoader()
       const gltf = await new Promise<GLTF>((resolve, reject) => {
@@ -377,6 +351,40 @@ export class AssetLoader {
       activeMaxTextureWidth = prevMax
       uninstallSafeImageBitmapPatch()
     }
+  }
+
+  /**
+   * Scene instance for a new WebGL context: shared geometry/textures,
+   * cloned materials so chapters can dispose without killing the cache.
+   */
+  private instantiate(source: Object3D): Object3D {
+    const root = source.clone(true)
+    root.traverse((obj) => {
+      obj.userData.fromAssetCache = true
+      const mesh = obj as THREE.Mesh
+      if (!mesh.isMesh || !mesh.material) return
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material]
+      const cloned = materials.map((mat) => {
+        const next = mat.clone()
+        const maps = [
+          'map',
+          'normalMap',
+          'roughnessMap',
+          'metalnessMap',
+          'aoMap',
+          'emissiveMap',
+        ] as const
+        for (const key of maps) {
+          const tex = (next as unknown as Record<string, THREE.Texture | undefined>)[key]
+          if (tex) tex.needsUpdate = true
+        }
+        return next
+      })
+      mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]
+    })
+    return root
   }
 
   private async ensureTexturesReady(root: Object3D): Promise<void> {

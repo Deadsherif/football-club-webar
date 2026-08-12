@@ -19,6 +19,11 @@ import {
   computeStableCardFraming,
   holdSelectCamera,
 } from '@/ar/engine/stableSelectCamera'
+import {
+  STADIUM_FREE_VIEW_WIDTH,
+  STADIUM_SCENE_LIFT,
+  applyStadiumExploreFraming,
+} from '@/ar/stadium/stadiumExploreFraming'
 
 export interface LegendsControllerHooks {
   onSelect?: (player: LegendPlayer | null) => void
@@ -48,6 +53,8 @@ export class LegendsController {
   private desiredCamera = new THREE.Vector3()
   private disposeEnvironment: (() => void) | null = null
   private hasUserNavigated = false
+  private storyLocked = false
+  private freeLook = false
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -105,8 +112,19 @@ export class LegendsController {
     this.hooks = hooks
   }
 
+  setStoryLocked(locked: boolean): void {
+    this.storyLocked = locked
+    if (locked && !this.freeLook) this.controls.enabled = false
+  }
+
+  setFreeLook(enabled: boolean): void {
+    this.freeLook = enabled
+    if (this.storyLocked) this.controls.enabled = enabled
+  }
+
   async start(): Promise<void> {
-    await this.environment.setup({ targetWidth: 7.4 })
+    await this.environment.setup({ targetWidth: STADIUM_FREE_VIEW_WIDTH })
+    this.environment.root.position.y = STADIUM_SCENE_LIFT
     this.content.setCamera(this.camera)
     this.resetCamera()
     this.camera.position.copy(this.desiredCamera)
@@ -219,6 +237,7 @@ export class LegendsController {
   }
 
   private pick(event: PointerEvent): void {
+    if (this.storyLocked) return
     const rect = this.renderer.domElement.getBoundingClientRect()
     this.pointer.set(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -258,12 +277,13 @@ export class LegendsController {
   }
 
   private resetCamera(): void {
-    const height = this.environment.floatingCardAltitude
-    this.target.set(0, height + this.fit.lookHeight, 0)
-    this.desiredCamera.set(
-      0,
-      height + this.fit.cameraHeight,
-      this.fit.cameraDistance,
+    const height =
+      this.environment.root.position.y + this.environment.floatingCardAltitude
+    applyStadiumExploreFraming(
+      height,
+      this.fit,
+      this.desiredCamera,
+      this.target,
     )
   }
 

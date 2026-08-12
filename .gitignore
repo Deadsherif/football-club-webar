@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local source dumps — not needed on GitHub Pages
+/Images/
+/models/
+/public/models/stadium.original.glb
+

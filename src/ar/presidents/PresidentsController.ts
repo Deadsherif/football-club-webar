@@ -10,9 +10,16 @@ import {
 } from '@/utils/stadiumViewport'
 import { attachStudioEnvironment } from '@/ar/effects/studioEnvironment'
 import {
+  computeJourneySplitFraming,
   computeStableCardFraming,
   holdSelectCamera,
 } from '@/ar/engine/stableSelectCamera'
+import {
+  CARD_CABINET_DISTANCE_SCALE,
+  applyStadiumExploreFraming,
+  getStadiumIdleOrbitCam,
+  getStadiumIntroLightsCam,
+} from '@/ar/stadium/stadiumExploreFraming'
 
 export type PresidentsPhase =
   | 'boot'
@@ -58,11 +65,20 @@ export class PresidentsController {
   private idleOrbit = 0
   private hasUserNavigated = false
   private transitionBannerUntil = 0
+  /** Soft zoom-out after closing a focused card. */
+  private zoomOutUntil = 0
   private container: HTMLElement
   private fit: StadiumViewportFit
   private disposeEnvironment: (() => void) | null = null
+  private storyLocked = false
+  private freeLook = false
+  private draggingModel = false
+  private lastPointerX = 0
+  private journeyEntranceDone = false
+  private pendingJourneyItemId: string | null = null
   private onPointerMove: (e: PointerEvent) => void
   private onPointerDown: (e: PointerEvent) => void
+  private onPointerUp: (e: PointerEvent) => void
   private onResize: () => void
 
   constructor(container: HTMLElement) {
@@ -109,13 +125,104 @@ export class PresidentsController {
       this.hasUserNavigated = true
     })
 
-    this.onPointerMove = (e) => this.handlePointer(e, false)
+    this.onPointerMove = (e) => this.handlePointerMove(e)
     this.onPointerDown = (e) => this.handlePointer(e, true)
+    this.onPointerUp = (e) => this.handlePointerUp(e)
     this.onResize = () => this.resize()
   }
 
   setHooks(hooks: PresidentsControllerHooks): void {
     this.hooks = hooks
+  }
+
+  /** When true, raycast taps are ignored (guided journey owns selection). */
+  setStoryLocked(locked: boolean): void {
+    this.storyLocked = locked
+    this.syncControlsEnabled()
+  }
+
+  /** Allow orbit while journey is active so cards stay inspectable. */
+  setFreeLook(enabled: boolean): void {
+    this.freeLook = enabled
+    this.syncControlsEnabled()
+  }
+
+  /** Orbit/zoom: always on in cabinet; focused card needs freeLook (EDIT VIEW). */
+  private syncControlsEnabled(): void {
+    if (performance.now() < this.zoomOutUntil) {
+      this.controls.enabled = false
+      return
+    }
+    if (this.phase !== 'explore' && this.phase !== 'selected') {
+      this.controls.enabled = false
+      return
+    }
+    if (!this.selectedId) {
+      this.controls.enabled = true
+      return
+    }
+    this.controls.enabled = this.freeLook
+  }
+
+  /** Jump past cinematic intro to the full cabinet. */
+  skipToExplore(): void {
+    this.world.setIntroProgress(1)
+    this.journeyEntranceDone = true
+    this.resize()
+    this.clearSelection()
+    this.applyExploreFraming()
+    this.camera.position.copy(this.cameraTarget)
+    this.controls.target.copy(this.lookTarget)
+    this.setPhase('explore')
+    this.controls.enabled = true
+  }
+
+  selectById(id: string): void {
+    const index = getPresidentIndex(id)
+    if (index < 0) return
+    this.selectByIndex(index)
+  }
+
+  /**
+   * Journey: play intro once, then show the full cabinet (no card open).
+   */
+  enterJourneyCabinet(): void {
+    this.storyLocked = true
+    this.pendingJourneyItemId = null
+    if (
+      !this.journeyEntranceDone &&
+      this.phase !== 'explore' &&
+      this.phase !== 'selected'
+    ) {
+      if (this.phase === 'boot' || this.phase === 'titles') {
+        this.setPhase('lights')
+      }
+      return
+    }
+    this.journeyEntranceDone = true
+    if (this.selectedId) this.clearSelection()
+    else this.applyExploreFraming()
+  }
+
+  /**
+   * Journey Next/Prev: open this step's card (keeps detail view).
+   */
+  showJourneyItem(itemId: string): void {
+    this.storyLocked = true
+    if (
+      !this.journeyEntranceDone &&
+      this.phase !== 'explore' &&
+      this.phase !== 'selected'
+    ) {
+      this.pendingJourneyItemId = itemId
+      if (this.phase === 'boot' || this.phase === 'titles') {
+        this.setPhase('lights')
+      }
+      return
+    }
+    this.journeyEntranceDone = true
+    this.pendingJourneyItemId = null
+    this.selectById(itemId)
   }
 
   async start(): Promise<void> {
@@ -129,6 +236,8 @@ export class PresidentsController {
     window.addEventListener('resize', this.onResize)
     this.renderer.domElement.addEventListener('pointermove', this.onPointerMove)
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown)
+    this.renderer.domElement.addEventListener('pointerup', this.onPointerUp)
+    this.renderer.domElement.addEventListener('pointercancel', this.onPointerUp)
     this.clock.start()
     this.tick()
   }
@@ -139,6 +248,8 @@ export class PresidentsController {
     window.removeEventListener('resize', this.onResize)
     this.renderer.domElement.removeEventListener('pointermove', this.onPointerMove)
     this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown)
+    this.renderer.domElement.removeEventListener('pointerup', this.onPointerUp)
+    this.renderer.domElement.removeEventListener('pointercancel', this.onPointerUp)
     this.world.dispose()
     this.controls.dispose()
     this.disposeEnvironment?.()
@@ -152,13 +263,30 @@ export class PresidentsController {
     const president = presidents[clamped]
     this.selectedIndex = clamped
     this.selectedId = president.id
-    this.world.setFocus(this.selectedId, null, this.camera)
-    this.focusCameraOn(president.id)
     this.hooks.onSelect?.(this.selectedId)
     this.hooks.onYearLabel?.(president.yearsLabel)
     this.setPhase('selected')
     this.transitionBannerUntil = performance.now() + 1200
     void audio.play('ui')
+    this.world.getCardById(president.id)?.snapIn()
+    void this.world.setFocus(this.selectedId, null, this.camera).then(() => {
+      if (this.selectedId !== president.id) return
+      if (this.storyLocked) {
+        this.world.applyJourneySplit(president.id, this.fit.isPortrait)
+      } else {
+        this.world.clearJourneySplit()
+      }
+      this.resize()
+      this.focusCameraOn(president.id)
+      // Second pass after layout settles (first journey enter can race intro/scale).
+      requestAnimationFrame(() => {
+        if (this.selectedId !== president.id) return
+        if (this.storyLocked) {
+          this.world.applyJourneySplit(president.id, this.fit.isPortrait)
+        }
+        this.focusCameraOn(president.id)
+      })
+    })
   }
 
   next(): void {
@@ -174,11 +302,15 @@ export class PresidentsController {
   clearSelection(): void {
     this.selectedId = null
     this.selectedIndex = -1
-    this.world.setFocus(null, this.hoveredId, this.camera)
-    this.applyExploreFraming()
     this.hooks.onSelect?.(null)
     this.setPhase('explore')
-    this.controls.enabled = true
+    this.hasUserNavigated = false
+    this.controls.enabled = false
+    this.zoomOutUntil = performance.now() + 1500
+    this.world.clearJourneySplit()
+    // Desired explore pose only — camera lerps from the focused view.
+    this.applyExploreFraming(false)
+    void this.world.setFocus(null, this.hoveredId, this.camera)
   }
 
   getSelectedId(): string | null {
@@ -189,13 +321,17 @@ export class PresidentsController {
     return performance.now() < this.transitionBannerUntil
   }
 
-  private applyExploreFraming(): void {
-    const cardsHeight = this.world.floatingCardAltitude
-    const distance = this.fit.cameraDistance
-    this.cameraTarget.set(0, cardsHeight + this.fit.cameraHeight, distance)
-    this.lookTarget.set(0, cardsHeight + this.fit.lookHeight, 0)
-    this.desiredCam.copy(this.cameraTarget)
-    this.desiredLook.copy(this.lookTarget)
+  private applyExploreFraming(snapLook = true): void {
+    applyStadiumExploreFraming(
+      this.world.floatingCardAltitude,
+      this.fit,
+      this.cameraTarget,
+      this.lookTarget,
+      this.desiredCam,
+      this.desiredLook,
+      CARD_CABINET_DISTANCE_SCALE,
+      snapLook,
+    )
   }
 
   private tick = (): void => {
@@ -208,8 +344,16 @@ export class PresidentsController {
     this.updateIntro(delta)
     this.world.update(time, delta)
 
-    const manualNavigation = this.phase === 'explore' && this.hasUserNavigated
-    if (this.selectedId) {
+    const zoomingOut = performance.now() < this.zoomOutUntil
+    const userOrbiting = this.controls.enabled && this.hasUserNavigated
+    if (zoomingOut) {
+      const camSpeed = 4.2
+      const lookSpeed = 4.6
+      this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * camSpeed))
+      this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * lookSpeed))
+      this.controls.target.copy(this.lookTarget)
+      this.camera.lookAt(this.lookTarget)
+    } else if (this.selectedId && !this.freeLook) {
       holdSelectCamera(
         this.camera,
         this.desiredCam,
@@ -217,64 +361,81 @@ export class PresidentsController {
         this.desiredLook,
         this.controls.target,
       )
-    } else if (!manualNavigation) {
+    } else if (userOrbiting) {
+      this.controls.update()
+      this.desiredCam.copy(this.camera.position)
+      this.lookTarget.copy(this.controls.target)
+      this.desiredLook.copy(this.lookTarget)
+    } else {
       this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * 2.2))
       this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * 2.4))
       this.controls.target.copy(this.lookTarget)
+      if (this.controls.enabled) this.controls.update()
+      else this.camera.lookAt(this.lookTarget)
     }
 
     if (this.phase === 'explore' && !this.selectedId) {
-      if (!this.hasUserNavigated) {
+      if (!this.hasUserNavigated && !zoomingOut) {
         this.idleOrbit += delta * 0.12
-        const distance = this.fit.cameraDistance
-        this.desiredCam.set(
-          Math.sin(this.idleOrbit) * distance,
-          this.world.floatingCardAltitude +
-            this.fit.cameraHeight +
-            Math.sin(this.idleOrbit * 0.5) * 0.15,
-          Math.cos(this.idleOrbit) * distance,
+        getStadiumIdleOrbitCam(
+          this.world.floatingCardAltitude,
+          this.fit,
+          this.idleOrbit,
+          this.desiredCam,
+          CARD_CABINET_DISTANCE_SCALE,
         )
       }
-    }
-
-    if (!this.selectedId) {
-      if (this.controls.enabled) this.controls.update()
-      else this.camera.lookAt(this.lookTarget)
+      if (!zoomingOut && this.zoomOutUntil > 0) {
+        this.zoomOutUntil = 0
+        this.syncControlsEnabled()
+        this.controls.target.copy(this.lookTarget)
+      }
     }
 
     this.renderer.render(this.scene, this.camera)
   }
 
   private updateIntro(_delta: number): void {
+    const fast = this.storyLocked
     if (this.phase === 'titles') {
-      if (this.phaseTime > 1.6) {
+      if (this.phaseTime > (fast ? 0.4 : 1.6)) {
         this.setPhase('lights')
       }
       return
     }
 
     if (this.phase === 'lights') {
-      const t = Math.min(0.4, this.phaseTime / 2.0)
+      const t = Math.min(0.4, this.phaseTime / (fast ? 0.85 : 2.0))
       this.world.setIntroProgress(t)
-      this.desiredCam.set(
-        0,
-        this.world.floatingCardAltitude + this.fit.cameraHeight + 0.4,
-        this.fit.cameraDistance + 1,
+      getStadiumIntroLightsCam(
+        this.world.floatingCardAltitude,
+        this.fit,
+        this.desiredCam,
+        CARD_CABINET_DISTANCE_SCALE,
       )
-      if (this.phaseTime > 2.0) this.setPhase('reveal')
+      if (this.phaseTime > (fast ? 0.85 : 2.0)) this.setPhase('reveal')
       return
     }
 
     if (this.phase === 'reveal') {
-      const t = Math.min(1, 0.4 + (this.phaseTime / 3.2) * 0.6)
+      const t = Math.min(
+        1,
+        0.4 + (this.phaseTime / (fast ? 1.5 : 3.2)) * 0.6,
+      )
       this.world.setIntroProgress(t)
       if (t >= 1) this.setPhase('tagline')
       return
     }
 
-    if (this.phase === 'tagline' && this.phaseTime > 2.2) {
+    if (this.phase === 'tagline' && this.phaseTime > (fast ? 0.35 : 2.2)) {
       this.setPhase('explore')
-      this.controls.enabled = true
+      this.journeyEntranceDone = true
+      this.syncControlsEnabled()
+      const pending = this.pendingJourneyItemId
+      if (pending) {
+        this.pendingJourneyItemId = null
+        this.selectById(pending)
+      }
     }
   }
 
@@ -284,6 +445,32 @@ export class PresidentsController {
     this.hooks.onPhase?.(phase)
   }
 
+  flipSelected(): void {
+    if (!this.selectedId) return
+    this.world.getCardById(this.selectedId)?.toggleFlip()
+    void audio.play('ui')
+  }
+
+  private handlePointerMove(e: PointerEvent): void {
+    if (this.storyLocked && this.draggingModel) {
+      const dx = e.clientX - this.lastPointerX
+      this.lastPointerX = e.clientX
+      this.world.addJourneySpin(dx * 0.012)
+      return
+    }
+    this.handlePointer(e, false)
+  }
+
+  private handlePointerUp(e: PointerEvent): void {
+    if (!this.draggingModel) return
+    this.draggingModel = false
+    try {
+      this.renderer.domElement.releasePointerCapture(e.pointerId)
+    } catch {
+      /* already released */
+    }
+  }
+
   private handlePointer(e: PointerEvent, isDown: boolean): void {
     if (this.phase !== 'explore' && this.phase !== 'selected') return
     const rect = this.renderer.domElement.getBoundingClientRect()
@@ -291,46 +478,61 @@ export class PresidentsController {
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     this.raycaster.setFromCamera(this.pointer, this.camera)
 
-    const meshes = this.world.cards.flatMap((c) => [c.meshFront, c.meshBack])
-    const hits = this.raycaster.intersectObjects(meshes, false)
+    // Only the portrait faces count — not glow / empty space.
+    const faceMeshes = this.world.cards.flatMap((c) => [c.meshFront, c.meshBack])
+    const hits = this.raycaster.intersectObjects(faceMeshes, false)
     const id = hits[0]?.object.userData.presidentId as string | undefined
 
     if (!isDown) {
       if (id !== this.hoveredId) {
         this.hoveredId = id ?? null
-        this.world.setFocus(this.selectedId, this.hoveredId, this.camera)
+        void this.world.setFocus(this.selectedId, this.hoveredId, this.camera)
         this.hooks.onHover?.(this.hoveredId)
       }
       return
     }
 
-    if (!id) {
-      if (this.selectedId) this.clearSelection()
+    // Flip / open only when the click lands on a card face.
+    if (id && id === this.selectedId) {
+      this.flipSelected()
+      return
+    }
+    if (id) {
+      this.selectById(id)
       return
     }
 
-    if (this.selectedId === id) {
-      this.world.getCardById(id)?.toggleFlip()
-      void audio.play('ui')
+    // Rotate the crest/stadium only when dragging on the model itself.
+    if (this.storyLocked && this.selectedId && this.world.hitTestModel(this.raycaster)) {
+      this.draggingModel = true
+      this.lastPointerX = e.clientX
+      this.renderer.domElement.setPointerCapture(e.pointerId)
       return
     }
 
-    const index = getPresidentIndex(id)
-    this.selectByIndex(index)
+    if (!this.storyLocked && this.selectedId) {
+      this.clearSelection()
+    }
   }
 
   private focusCameraOn(id: string): void {
     const card = this.world.getCardById(id)
     if (!card) return
-    const parent = card.group.parent
-    const home = card.anim.basePosition.clone()
-    if (parent) parent.localToWorld(home)
-    else home.copy(card.anim.basePosition)
 
-    const { cam, look } = computeStableCardFraming(home, this.fit)
-    this.desiredLook.copy(look)
-    this.desiredCam.copy(cam)
-    this.controls.enabled = false
+    // Journey presidents only: two-column framing (model left, card right).
+    const framing = this.storyLocked
+      ? computeJourneySplitFraming(this.world.floatingCardAltitude, this.fit)
+      : (() => {
+          const parent = card.group.parent
+          const home = card.anim.basePosition.clone()
+          if (parent) parent.localToWorld(home)
+          else home.copy(card.anim.basePosition)
+          return computeStableCardFraming(home, this.fit)
+        })()
+
+    this.desiredLook.copy(framing.look)
+    this.desiredCam.copy(framing.cam)
+    this.hasUserNavigated = false
     holdSelectCamera(
       this.camera,
       this.desiredCam,
@@ -338,6 +540,7 @@ export class PresidentsController {
       this.desiredLook,
       this.controls.target,
     )
+    this.syncControlsEnabled()
   }
 
   private resize(): void {
@@ -350,6 +553,11 @@ export class PresidentsController {
     this.controls.minDistance = this.fit.minDistance
     this.controls.maxDistance = this.fit.maxDistance
     this.renderer.setSize(w, h)
+    if (this.selectedId && this.storyLocked) {
+      this.world.applyJourneySplit(this.selectedId, this.fit.isPortrait)
+      this.focusCameraOn(this.selectedId)
+      return
+    }
     if (!this.selectedId) this.applyExploreFraming()
   }
 }

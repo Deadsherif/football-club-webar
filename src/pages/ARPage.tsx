@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
 import { ARViewport } from '@/components/ar/ARViewport'
 import { ExplorePanel } from '@/components/panels/ExplorePanel'
 import { AIAssistant } from '@/components/panels/AIAssistant'
@@ -9,7 +10,9 @@ import { RedCastleHUD } from '@/components/red-castle/RedCastleHUD'
 import { TrophiesHUD } from '@/components/trophies/TrophiesHUD'
 import { LoadingScreen } from '@/components/screens/LoadingScreen'
 import { useExperienceContext } from '@/experience/ExperienceContext'
+import { useJourney } from '@/journey/JourneyContext'
 import { getHistoricalSquad, historicalSquads } from '@/data/squads'
+import { t } from '@/i18n'
 
 export function ARPage() {
   const {
@@ -56,7 +59,27 @@ export function ARPage() {
     selectLegendSquad,
     selectLegendPlayer,
     goLanding,
+    stopAR,
   } = useExperienceContext()
+  const journey = useJourney()
+  const launchedJourneyRef = useRef(false)
+  const copy = t()
+
+  useEffect(() => {
+    if (!journey.pendingScanStart) {
+      launchedJourneyRef.current = false
+      return
+    }
+    if (trackingState !== 'tracking' || launchedJourneyRef.current) return
+    launchedJourneyRef.current = true
+    journey.startFromScan()
+    stopAR()
+  }, [journey, stopAR, trackingState])
+
+  const handleExit = () => {
+    journey.clearScanStart()
+    goLanding()
+  }
 
   if (phase === 'camera-error') {
     return <Navigate to="/camera-error" replace />
@@ -105,10 +128,18 @@ export function ARPage() {
           onOpenBoard={openBoard}
           onOpenRedCastle={openRedCastle}
           onOpenAI={() => setAiOpen(true)}
-          onExit={goLanding}
+          onExit={handleExit}
           showOverlay={phase === 'ar'}
-          menuHidden={menuHidden}
+          menuHidden={menuHidden || journey.pendingScanStart}
         />
+      )}
+
+      {phase === 'ar' && journey.pendingScanStart && (
+        <div className="pointer-events-none absolute inset-x-0 top-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] z-40 px-4 text-center">
+          <p className="mx-auto max-w-sm rounded-full border border-pitch-gold/35 bg-black/65 px-4 py-2 text-[10px] tracking-[0.16em] text-pitch-gold backdrop-blur-md">
+            {copy.journeyStartHint}
+          </p>
+        </div>
       )}
 
       {phase === 'ar' && exploreSection && (

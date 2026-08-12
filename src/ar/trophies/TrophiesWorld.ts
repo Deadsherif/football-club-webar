@@ -1,8 +1,15 @@
-import * as THREE from 'three'
 import { trophies } from '@/data/trophies'
 import { TrophyObject } from '@/ar/trophies/TrophyObject'
 import { buildTrophyFormation } from '@/ar/trophies/trophyFormation'
 import { StadiumEnvironment } from '@/ar/stadium/StadiumEnvironment'
+import {
+  STADIUM_FREE_VIEW_WIDTH,
+  STADIUM_SCENE_LIFT,
+} from '@/ar/stadium/stadiumExploreFraming'
+import {
+  applyStadiumIntroFlight,
+  resetStadiumIntroFlight,
+} from '@/ar/stadium/stadiumIntroFlight'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
 import { getStadiumViewportFit } from '@/utils/stadiumViewport'
 import { getTrophyLoadBudget } from '@/ar/trophies/trophyBudget'
@@ -31,10 +38,14 @@ export class TrophiesWorld {
     const budget = getTrophyLoadBudget(capability)
 
     await this.environment.setup({
-      targetWidth: 7.4,
+      targetWidth: STADIUM_FREE_VIEW_WIDTH,
       preferProcedural: budget.preferProceduralStadium,
+      maxTextureWidth: budget.stadiumTextureWidth,
     })
     this.environment.contentRoot.name = 'FloatingTrophies'
+    this.environment.root.position.y = STADIUM_SCENE_LIFT
+    // Readable stadium before cinematic light ramp (esp. mobile / procedural).
+    this.environment.setLightIntensity(0.65)
 
     const formation = buildTrophyFormation(trophies)
     const { cardScale } = getStadiumViewportFit()
@@ -72,16 +83,28 @@ export class TrophiesWorld {
   }
 
   setIntroProgress(t: number): void {
-    this.environment.setLightIntensity(Math.min(1, t * 1.2))
-    const reveal = Math.floor(t * this.trophies.length)
+    this.environment.setLightIntensity(Math.max(0.65, Math.min(1, t * 1.2)))
+    applyStadiumIntroFlight(this.environment.stadiumRoot, t)
+    const trophyT = Math.max(0, (t - 0.28) / 0.72)
+    const reveal = Math.floor(trophyT * this.trophies.length)
     while (this.revealCount < reveal && this.revealCount < this.trophies.length) {
       const obj = this.trophies[this.revealCount]
       obj.group.visible = true
+      obj.beginFlyIn()
       this.revealCount++
     }
     if (t >= 1) {
       this.introDone = true
-      for (const obj of this.trophies) obj.group.visible = true
+      resetStadiumIntroFlight(this.environment.stadiumRoot)
+      for (const obj of this.trophies) {
+        obj.group.visible = true
+        obj.snapIn()
+        const targetScale =
+          typeof obj.group.userData.targetScale === 'number'
+            ? obj.group.userData.targetScale
+            : 1
+        obj.group.scale.setScalar(targetScale)
+      }
       this.revealCount = this.trophies.length
     }
   }
@@ -91,22 +114,14 @@ export class TrophiesWorld {
   }
 
   get floatingTrophyAltitude(): number {
-    return this.environment.floatingCardAltitude
+    return this.environment.root.position.y + this.environment.floatingCardAltitude
   }
 
   update(time: number, delta: number): void {
     this.environment.update(time, delta)
 
     for (let i = 0; i < this.revealCount; i++) {
-      const obj = this.trophies[i]
-      const targetScale =
-        typeof obj.group.userData.targetScale === 'number'
-          ? obj.group.userData.targetScale
-          : 1
-      obj.group.scale.setScalar(
-        THREE.MathUtils.damp(obj.group.scale.x, targetScale, 4, delta),
-      )
-      obj.update(time, delta)
+      this.trophies[i].update(time, delta)
     }
   }
 

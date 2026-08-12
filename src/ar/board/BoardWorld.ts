@@ -2,6 +2,15 @@ import { boardMembers } from '@/data/boardMembers'
 import { PresidentCard } from '@/ar/presidents/PresidentCard'
 import { buildCardFormation } from '@/ar/presidents/cardFormation'
 import { StadiumEnvironment } from '@/ar/stadium/StadiumEnvironment'
+import {
+  CARD_CABINET_SCALE,
+  STADIUM_FREE_VIEW_WIDTH,
+  STADIUM_SCENE_LIFT,
+} from '@/ar/stadium/stadiumExploreFraming'
+import {
+  applyStadiumIntroFlight,
+  resetStadiumIntroFlight,
+} from '@/ar/stadium/stadiumIntroFlight'
 import { detectDeviceCapability } from '@/utils/deviceCapability'
 import { getStadiumViewportFit } from '@/utils/stadiumViewport'
 
@@ -20,8 +29,9 @@ export class BoardWorld {
   }
 
   async setup(): Promise<void> {
-    await this.environment.setup({ targetWidth: 7.4 })
+    await this.environment.setup({ targetWidth: STADIUM_FREE_VIEW_WIDTH })
     this.environment.contentRoot.name = 'FloatingBoardCards'
+    this.environment.root.position.y = STADIUM_SCENE_LIFT
 
     const formation = buildCardFormation(boardMembers)
     const capability = detectDeviceCapability()
@@ -32,7 +42,8 @@ export class BoardWorld {
     for (let i = 0; i < maxCards; i++) {
       const { president, anim } = formation[i]
       const card = new PresidentCard(president, anim)
-      card.baseScale = cardScale
+      card.baseScale = cardScale * CARD_CABINET_SCALE
+      card.configureArFocus(0.18, 0.14)
       card.group.visible = false
       card.group.scale.setScalar(0.01)
       this.cards.push(card)
@@ -42,7 +53,9 @@ export class BoardWorld {
 
   setIntroProgress(t: number): void {
     this.environment.setLightIntensity(Math.min(1, t * 1.2))
-    const reveal = Math.floor(t * this.cards.length)
+    applyStadiumIntroFlight(this.environment.stadiumRoot, t)
+    const cardT = Math.max(0, (t - 0.28) / 0.72)
+    const reveal = Math.floor(cardT * this.cards.length)
     while (this.revealCount < reveal && this.revealCount < this.cards.length) {
       const card = this.cards[this.revealCount]
       card.group.visible = true
@@ -51,9 +64,10 @@ export class BoardWorld {
     }
     if (t >= 1) {
       this.introDone = true
+      resetStadiumIntroFlight(this.environment.stadiumRoot)
       for (const card of this.cards) {
         card.group.visible = true
-        if (card.entry < 0.01) card.beginFlyIn()
+        card.snapIn()
       }
       this.revealCount = this.cards.length
     }
@@ -64,7 +78,7 @@ export class BoardWorld {
   }
 
   get floatingCardAltitude(): number {
-    return this.environment.floatingCardAltitude
+    return this.environment.root.position.y + this.environment.floatingCardAltitude
   }
 
   update(time: number, delta: number): void {

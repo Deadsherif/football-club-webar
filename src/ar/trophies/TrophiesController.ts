@@ -12,7 +12,13 @@ import {
   computeStableCardFraming,
   holdSelectCamera,
 } from '@/ar/engine/stableSelectCamera'
-import { assetLoader } from '@/ar/assets/AssetLoader'
+import {
+  CARD_CABINET_DISTANCE_SCALE,
+  applyStadiumExploreFraming,
+  getStadiumIdleOrbitCam,
+  getStadiumIntroLightsCam,
+} from '@/ar/stadium/stadiumExploreFraming'
+import { getTrophyIndex } from '@/data/trophies'
 
 export type TrophiesPhase =
   | 'boot'
@@ -58,9 +64,15 @@ export class TrophiesController {
   private idleOrbit = 0
   private hasUserNavigated = false
   private transitionBannerUntil = 0
+  /** Soft zoom-out after closing a focused trophy. */
+  private zoomOutUntil = 0
   private container: HTMLElement
   private fit: StadiumViewportFit
   private disposeEnvironment: (() => void) | null = null
+  private storyLocked = false
+  private freeLook = false
+  private journeyEntranceDone = false
+  private pendingJourneyItemId: string | null = null
   private onPointerMove: (e: PointerEvent) => void
   private onPointerDown: (e: PointerEvent) => void
   private onResize: () => void
@@ -118,6 +130,93 @@ export class TrophiesController {
     this.hooks = hooks
   }
 
+  setStoryLocked(locked: boolean): void {
+    this.storyLocked = locked
+    this.syncControlsEnabled()
+  }
+
+  setFreeLook(enabled: boolean): void {
+    this.freeLook = enabled
+    this.syncControlsEnabled()
+  }
+
+  /** Orbit/zoom: always on in cabinet; focused item needs freeLook (EDIT VIEW). */
+  private syncControlsEnabled(): void {
+    if (performance.now() < this.zoomOutUntil) {
+      this.controls.enabled = false
+      return
+    }
+    if (this.phase !== 'explore' && this.phase !== 'selected') {
+      this.controls.enabled = false
+      return
+    }
+    if (!this.selectedId) {
+      this.controls.enabled = true
+      return
+    }
+    this.controls.enabled = this.freeLook
+  }
+
+  selectById(id: string): void {
+    const index = getTrophyIndex(id)
+    if (index < 0) return
+    this.selectByIndex(index)
+  }
+
+  /**
+   * Journey: play intro once, then show the full cabinet (no trophy open).
+   */
+  enterJourneyCabinet(): void {
+    this.storyLocked = true
+    this.pendingJourneyItemId = null
+    if (
+      !this.journeyEntranceDone &&
+      this.phase !== 'explore' &&
+      this.phase !== 'selected'
+    ) {
+      if (this.phase === 'boot' || this.phase === 'titles') {
+        this.setPhase('lights')
+      }
+      return
+    }
+    this.journeyEntranceDone = true
+    if (this.selectedId) this.clearSelection()
+    else this.applyExploreFraming()
+  }
+
+  /**
+   * Journey Next/Prev: open this step's trophy (keeps detail view).
+   */
+  showJourneyItem(itemId: string): void {
+    this.storyLocked = true
+    if (
+      !this.journeyEntranceDone &&
+      this.phase !== 'explore' &&
+      this.phase !== 'selected'
+    ) {
+      this.pendingJourneyItemId = itemId
+      if (this.phase === 'boot' || this.phase === 'titles') {
+        this.setPhase('lights')
+      }
+      return
+    }
+    this.journeyEntranceDone = true
+    this.pendingJourneyItemId = null
+    this.selectById(itemId)
+  }
+
+  skipToExplore(): void {
+    this.world.setIntroProgress(1)
+    this.journeyEntranceDone = true
+    this.resize()
+    this.clearSelection()
+    this.applyExploreFraming()
+    this.camera.position.copy(this.cameraTarget)
+    this.controls.target.copy(this.lookTarget)
+    this.setPhase('explore')
+    this.controls.enabled = true
+  }
+
   async start(): Promise<void> {
     await this.world.setup()
     this.applyExploreFraming()
@@ -144,14 +243,7 @@ export class TrophiesController {
     this.disposeEnvironment?.()
     this.disposeEnvironment = null
     this.renderer.dispose()
-    // Mobile browsers often keep the GL context + heap until forced loss.
-    const gl = this.renderer.getContext()
-    const lose = (gl as WebGLRenderingContext & {
-      getExtension: (name: string) => { loseContext?: () => void } | null
-    }).getExtension('WEBGL_lose_context')
-    lose?.loseContext?.()
     this.renderer.domElement.remove()
-    assetLoader.clearCache()
   }
 
   selectByIndex(index: number): void {
@@ -161,9 +253,22 @@ export class TrophiesController {
     const trophy = list[clamped]
     this.selectedIndex = clamped
     this.selectedId = trophy.id
+    const obj = this.world.getTrophyById(trophy.id)
+    if (obj) {
+      const targetScale =
+        typeof obj.group.userData.targetScale === 'number'
+          ? obj.group.userData.targetScale
+          : 1
+      obj.group.scale.setScalar(targetScale)
+    }
     this.world.setFocus(this.selectedId, null)
     void this.world.ensureTrophyModel(trophy.id)
+    this.resize()
     this.focusCameraOn(trophy.id)
+    requestAnimationFrame(() => {
+      if (this.selectedId !== trophy.id) return
+      this.focusCameraOn(trophy.id)
+    })
     this.hooks.onSelect?.(this.selectedId)
     this.hooks.onLabel?.(trophy.nameAr)
     this.setPhase('selected')
@@ -185,10 +290,12 @@ export class TrophiesController {
     this.selectedId = null
     this.selectedIndex = -1
     this.world.setFocus(null, this.hoveredId)
-    this.applyExploreFraming()
+    this.applyExploreFraming(false)
     this.hooks.onSelect?.(null)
     this.setPhase('explore')
-    this.controls.enabled = true
+    this.hasUserNavigated = false
+    this.controls.enabled = false
+    this.zoomOutUntil = performance.now() + 1500
   }
 
   getSelectedId(): string | null {
@@ -199,13 +306,17 @@ export class TrophiesController {
     return performance.now() < this.transitionBannerUntil
   }
 
-  private applyExploreFraming(): void {
-    const alt = this.world.floatingTrophyAltitude
-    const distance = this.fit.cameraDistance
-    this.cameraTarget.set(0, alt + this.fit.cameraHeight, distance)
-    this.lookTarget.set(0, alt + this.fit.lookHeight, 0)
-    this.desiredCam.copy(this.cameraTarget)
-    this.desiredLook.copy(this.lookTarget)
+  private applyExploreFraming(snapLook = true): void {
+    applyStadiumExploreFraming(
+      this.world.floatingTrophyAltitude,
+      this.fit,
+      this.cameraTarget,
+      this.lookTarget,
+      this.desiredCam,
+      this.desiredLook,
+      CARD_CABINET_DISTANCE_SCALE,
+      snapLook,
+    )
   }
 
   private tick = (): void => {
@@ -218,8 +329,14 @@ export class TrophiesController {
     this.updateIntro(delta)
     this.world.update(time, delta)
 
-    const manualNavigation = this.phase === 'explore' && this.hasUserNavigated
-    if (this.selectedId) {
+    const zoomingOut = performance.now() < this.zoomOutUntil
+    const userOrbiting = this.controls.enabled && this.hasUserNavigated
+    if (zoomingOut) {
+      this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * 4.2))
+      this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * 4.6))
+      this.controls.target.copy(this.lookTarget)
+      this.camera.lookAt(this.lookTarget)
+    } else if (this.selectedId && !this.freeLook) {
       holdSelectCamera(
         this.camera,
         this.desiredCam,
@@ -227,62 +344,78 @@ export class TrophiesController {
         this.desiredLook,
         this.controls.target,
       )
-    } else if (!manualNavigation) {
+    } else if (userOrbiting) {
+      this.controls.update()
+      this.desiredCam.copy(this.camera.position)
+      this.lookTarget.copy(this.controls.target)
+      this.desiredLook.copy(this.lookTarget)
+    } else {
       this.camera.position.lerp(this.desiredCam, 1 - Math.exp(-delta * 2.2))
       this.lookTarget.lerp(this.desiredLook, 1 - Math.exp(-delta * 2.4))
       this.controls.target.copy(this.lookTarget)
+      if (this.controls.enabled) this.controls.update()
+      else this.camera.lookAt(this.lookTarget)
     }
 
     if (this.phase === 'explore' && !this.selectedId) {
-      if (!this.hasUserNavigated) {
+      if (!this.hasUserNavigated && !zoomingOut) {
         this.idleOrbit += delta * 0.12
-        const distance = this.fit.cameraDistance
-        this.desiredCam.set(
-          Math.sin(this.idleOrbit) * distance,
-          this.world.floatingTrophyAltitude +
-            this.fit.cameraHeight +
-            Math.sin(this.idleOrbit * 0.5) * 0.15,
-          Math.cos(this.idleOrbit) * distance,
+        getStadiumIdleOrbitCam(
+          this.world.floatingTrophyAltitude,
+          this.fit,
+          this.idleOrbit,
+          this.desiredCam,
+          CARD_CABINET_DISTANCE_SCALE,
         )
       }
-    }
-
-    if (!this.selectedId) {
-      if (this.controls.enabled) this.controls.update()
-      else this.camera.lookAt(this.lookTarget)
+      if (!zoomingOut && this.zoomOutUntil > 0) {
+        this.zoomOutUntil = 0
+        this.syncControlsEnabled()
+        this.controls.target.copy(this.lookTarget)
+      }
     }
 
     this.renderer.render(this.scene, this.camera)
   }
 
   private updateIntro(_delta: number): void {
+    const fast = this.storyLocked
     if (this.phase === 'titles') {
-      if (this.phaseTime > 1.6) this.setPhase('lights')
+      if (this.phaseTime > (fast ? 0.4 : 1.6)) this.setPhase('lights')
       return
     }
 
     if (this.phase === 'lights') {
-      const t = Math.min(0.4, this.phaseTime / 2.0)
+      const t = Math.min(0.4, this.phaseTime / (fast ? 0.85 : 2.0))
       this.world.setIntroProgress(t)
-      this.desiredCam.set(
-        0,
-        this.world.floatingTrophyAltitude + this.fit.cameraHeight + 0.4,
-        this.fit.cameraDistance + 1,
+      getStadiumIntroLightsCam(
+        this.world.floatingTrophyAltitude,
+        this.fit,
+        this.desiredCam,
       )
-      if (this.phaseTime > 2.0) this.setPhase('reveal')
+      if (this.phaseTime > (fast ? 0.85 : 2.0)) this.setPhase('reveal')
       return
     }
 
     if (this.phase === 'reveal') {
-      const t = Math.min(1, 0.4 + (this.phaseTime / 3.2) * 0.6)
+      const t = Math.min(
+        1,
+        0.4 + (this.phaseTime / (fast ? 1.5 : 3.2)) * 0.6,
+      )
       this.world.setIntroProgress(t)
       if (t >= 1) this.setPhase('tagline')
       return
     }
 
-    if (this.phase === 'tagline' && this.phaseTime > 2.2) {
+    if (this.phase === 'tagline' && this.phaseTime > (fast ? 0.35 : 2.2)) {
       this.setPhase('explore')
-      this.controls.enabled = true
+      this.journeyEntranceDone = true
+      this.syncControlsEnabled()
+      const pending = this.pendingJourneyItemId
+      if (pending) {
+        this.pendingJourneyItemId = null
+        this.selectById(pending)
+      }
     }
   }
 
@@ -341,7 +474,7 @@ export class TrophiesController {
     const { cam, look } = computeStableCardFraming(pos, this.fit, 0.25)
     this.desiredLook.copy(look)
     this.desiredCam.copy(cam)
-    this.controls.enabled = false
+    this.hasUserNavigated = false
     holdSelectCamera(
       this.camera,
       this.desiredCam,
@@ -349,6 +482,7 @@ export class TrophiesController {
       this.desiredLook,
       this.controls.target,
     )
+    this.syncControlsEnabled()
   }
 
   private resize(): void {
@@ -361,6 +495,7 @@ export class TrophiesController {
     this.controls.minDistance = this.fit.minDistance
     this.controls.maxDistance = this.fit.maxDistance
     this.renderer.setSize(w, h)
-    if (!this.selectedId) this.applyExploreFraming()
+    if (this.selectedId) this.focusCameraOn(this.selectedId)
+    else this.applyExploreFraming()
   }
 }

@@ -36,7 +36,7 @@ export function IntroScreen({ crestSrc, onOpenCamera, onBack }: IntroScreenProps
           <img
             src={crestSrc}
             alt=""
-            className="h-28 w-28 object-contain opacity-90"
+            className="h-20 w-20 object-contain opacity-90"
             draggable={false}
           />
         </div>

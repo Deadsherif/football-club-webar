@@ -3,6 +3,13 @@ import type { CardAnimState } from '@/ar/presidents/PresidentCard'
 import type { LegendPlayer } from '@/data/players'
 import { ArCardZoom } from '@/ar/engine/ArCardZoom'
 import { yawFacingCamera } from '@/ar/engine/cardFaceCamera'
+import {
+  CARD_FACE_HEIGHT,
+  CARD_FACE_WIDTH,
+  drawCoverPortrait,
+  finishCardTexture,
+  getCachedCardCanvas,
+} from '@/ar/engine/cardPortraitDraw'
 
 const CARD_W = 0.42
 const CARD_H = 0.62
@@ -115,7 +122,10 @@ export class PlayerCard3D {
     const wasSelected = this.targetSelected > 0.5
     this.targetSelected = value ? 1 : 0
     // Portrait on first select / deselect; keep flip while staying selected.
-    if (value && !wasSelected) this.targetFlip = 0
+    if (value && !wasSelected) {
+      this.targetFlip = 0
+      this.snapIn()
+    }
     if (!value) {
       this.targetFlip = 0
       this.homeLocked = false
@@ -144,6 +154,14 @@ export class PlayerCard3D {
   beginFlyIn(): void {
     this.entry = 0
     this.targetEntry = 1
+  }
+
+  /** Instantly finish entry so select framing uses the final card pose. */
+  snapIn(): void {
+    this.entry = 1
+    this.targetEntry = 1
+    this.homeLocked = false
+    this.group.scale.setScalar(Math.max(0.001, this.baseScale))
   }
 
   toggleFlip(): void {
@@ -186,16 +204,16 @@ export class PlayerCard3D {
     const scale =
       this.baseScale *
       this.entry *
-      (1 + this.hover * 0.08 + this.selected * 0.1 + breathe)
+      (1 + this.hover * 0.08 + this.selected * 0.16 + breathe)
     const entryY = (1 - this.entry) * -0.55 * Math.max(this.baseScale, 0.2)
     const toward =
-      (this.hover * 0.18 + this.selected * 0.12) * this.baseScale * motion
+      (this.hover * 0.18 + this.selected * 0.16) * this.baseScale * motion
 
     if (focusing) {
       if (!this.homeLocked) {
         this.lockedHome.set(
           this.anim.basePosition.x,
-          this.anim.basePosition.y + entryY + 0.12 * this.baseScale,
+          this.anim.basePosition.y + 0.12 * this.baseScale,
           this.anim.basePosition.z,
         )
         this.homeLocked = true
@@ -233,13 +251,29 @@ export class PlayerCard3D {
       this.group,
       this.focusCamera,
       delta,
-      this.baseScale * this.entry * (1 + (focusing ? 0.04 : this.selected * 0.06)),
+      this.baseScale * this.entry * (1 + (focusing ? 0.1 : this.selected * 0.08)),
       this.homeLocal,
       this.flip,
     )
 
-    this.brightness = 1 - this.dim * 0.72
-    const faceOpacity = 1 - this.dim * 0.78
+    // Same as trophies: fade others fully out so they cannot cover the selected card.
+    this.brightness = 1 - this.dim * 0.88
+    const faceOpacity = Math.max(0, 1 - this.dim)
+    const writeDepth = this.dim < 0.04
+    const selected = this.targetSelected > 0.5 || this.selected > 0.2
+    const hideForFocus = this.targetDim > 0.5 && this.dim > 0.88
+
+    this.group.renderOrder = selected ? 20 : this.dim > 0.2 ? -5 : 0
+    this.meshFront.renderOrder = this.group.renderOrder
+    this.meshBack.renderOrder = this.group.renderOrder
+    this.edge.renderOrder = this.group.renderOrder
+    this.glow.renderOrder = this.group.renderOrder
+
+    this.meshFront.visible = !hideForFocus
+    this.meshBack.visible = !hideForFocus
+    this.edge.visible = !hideForFocus
+    this.glow.visible = !hideForFocus
+
     const frontMat = this.meshFront.material as THREE.MeshBasicMaterial
     const backMat = this.meshBack.material as THREE.MeshBasicMaterial
     const edgeMat = this.edge.material as THREE.LineBasicMaterial
@@ -247,15 +281,15 @@ export class PlayerCard3D {
     backMat.color.setScalar(this.brightness)
     frontMat.opacity = faceOpacity
     backMat.opacity = faceOpacity
-    frontMat.depthWrite = faceOpacity > 0.85
-    backMat.depthWrite = faceOpacity > 0.85
+    frontMat.depthWrite = writeDepth && faceOpacity > 0.92
+    backMat.depthWrite = writeDepth && faceOpacity > 0.92
     edgeMat.opacity = this.edgeBaseOpacity * faceOpacity
     ;(this.glow.material as THREE.MeshBasicMaterial).opacity =
       (0.025 +
         this.hover * 0.04 +
         this.selected * 0.08 +
         this.arZoom.value * 0.1) *
-      (1 - this.dim * 0.92)
+      (1 - this.dim)
   }
 
   dispose(): void {
@@ -297,9 +331,20 @@ async function createPlayerFace(
   player: LegendPlayer,
   side: 'front' | 'back',
 ): Promise<THREE.CanvasTexture> {
+  const canvas = await getCachedCardCanvas(
+    `legend:${player.id}:${side}`,
+    () => paintPlayerFace(player, side),
+  )
+  return finishCardTexture(canvas)
+}
+
+async function paintPlayerFace(
+  player: LegendPlayer,
+  side: 'front' | 'back',
+): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 768
+  canvas.width = CARD_FACE_WIDTH
+  canvas.height = CARD_FACE_HEIGHT
   const ctx = canvas.getContext('2d')!
   const { width: w, height: h } = canvas
 
@@ -311,59 +356,56 @@ async function createPlayerFace(
   ctx.fillRect(0, 0, w, h)
 
   ctx.strokeStyle = '#d4af37'
-  ctx.lineWidth = 14
-  ctx.strokeRect(18, 18, w - 36, h - 36)
+  ctx.lineWidth = 10
+  ctx.strokeRect(14, 14, w - 28, h - 28)
   ctx.strokeStyle = 'rgba(212,175,55,0.35)'
-  ctx.lineWidth = 3
-  ctx.strokeRect(32, 32, w - 64, h - 64)
+  ctx.lineWidth = 2
+  ctx.strokeRect(24, 24, w - 48, h - 48)
   ctx.textAlign = 'center'
 
   if (side === 'front') {
-    await drawPortraitOrPlaceholder(ctx, player.portrait, 28, 28, w - 56, h - 192)
+    await drawPortraitOrPlaceholder(ctx, player.portrait, 22, 22, w - 44, h - 144)
     ctx.fillStyle = 'rgba(10,5,6,0.78)'
-    ctx.fillRect(28, h - 182, w - 56, 154)
+    ctx.fillRect(22, h - 136, w - 44, 116)
 
     ctx.fillStyle = '#d4af37'
-    ctx.font = '700 18px Oswald, Arial, sans-serif'
-    ctx.fillText('AL AHLY LEGEND', w / 2, h - 148)
+    ctx.font = '700 14px Oswald, Arial, sans-serif'
+    ctx.fillText('AL AHLY LEGEND', w / 2, h - 110)
     ctx.fillStyle = '#ffffff'
-    ctx.font = '700 28px Oswald, Arial, sans-serif'
-    wrapText(ctx, player.name.toUpperCase(), w / 2, h - 110, w - 78, 30)
+    ctx.font = '700 22px Oswald, Arial, sans-serif'
+    wrapText(ctx, player.name.toUpperCase(), w / 2, h - 82, w - 58, 24)
     ctx.fillStyle = 'rgba(255,255,255,0.82)'
-    ctx.font = '600 20px Oswald, Arial, sans-serif'
-    ctx.fillText(player.position ?? 'LEGEND', w / 2, h - 58)
-    ctx.font = '500 17px Oswald, Arial, sans-serif'
-    ctx.fillText(player.era, w / 2, h - 32)
+    ctx.font = '600 15px Oswald, Arial, sans-serif'
+    ctx.fillText(player.position ?? 'LEGEND', w / 2, h - 44)
+    ctx.font = '500 13px Oswald, Arial, sans-serif'
+    ctx.fillText(player.era, w / 2, h - 24)
   } else {
     ctx.fillStyle = '#d4af37'
-    ctx.font = '700 20px Oswald, Arial, sans-serif'
-    ctx.fillText('AL AHLY LEGEND', w / 2, 88)
+    ctx.font = '700 15px Oswald, Arial, sans-serif'
+    ctx.fillText('AL AHLY LEGEND', w / 2, 66)
     ctx.fillStyle = '#ffffff'
-    ctx.font = '700 30px Oswald, Arial, sans-serif'
-    wrapText(ctx, player.name.toUpperCase(), w / 2, 136, w - 80, 32)
+    ctx.font = '700 22px Oswald, Arial, sans-serif'
+    wrapText(ctx, player.name.toUpperCase(), w / 2, 102, w - 60, 24)
     ctx.fillStyle = 'rgba(255,255,255,0.72)'
-    ctx.font = '500 20px Oswald, Arial, sans-serif'
-    ctx.fillText(player.position ?? 'FEATURED LEGEND', w / 2, 218)
-    ctx.fillText(player.era, w / 2, 248)
+    ctx.font = '500 15px Oswald, Arial, sans-serif'
+    ctx.fillText(player.position ?? 'FEATURED LEGEND', w / 2, 164)
+    ctx.fillText(player.era, w / 2, 186)
     ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = '400 18px Manrope, Arial, sans-serif'
-    wrapText(ctx, player.description, w / 2, 306, w - 88, 26)
+    ctx.font = '400 14px Manrope, Arial, sans-serif'
+    wrapText(ctx, player.description, w / 2, 230, w - 66, 20)
     if (player.achievements?.length) {
       ctx.fillStyle = '#d4af37'
-      ctx.font = '700 17px Oswald, Arial, sans-serif'
-      ctx.fillText('KEY ACHIEVEMENTS', w / 2, 540)
+      ctx.font = '700 13px Oswald, Arial, sans-serif'
+      ctx.fillText('KEY ACHIEVEMENTS', w / 2, 405)
       ctx.fillStyle = 'rgba(255,255,255,0.78)'
-      ctx.font = '400 17px Manrope, Arial, sans-serif'
+      ctx.font = '400 13px Manrope, Arial, sans-serif'
       player.achievements.slice(0, 2).forEach((achievement, index) => {
-        wrapText(ctx, `• ${achievement}`, w / 2, 574 + index * 54, w - 90, 22)
+        wrapText(ctx, `• ${achievement}`, w / 2, 430 + index * 40, w - 68, 18)
       })
     }
   }
 
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.anisotropy = 4
-  texture.needsUpdate = true
-  return texture
+  return canvas
 }
 
 async function drawPortraitOrPlaceholder(
@@ -378,28 +420,16 @@ async function drawPortraitOrPlaceholder(
     ctx.fillStyle = '#24090d'
     ctx.fillRect(x, y, width, height)
     ctx.strokeStyle = 'rgba(212,175,55,0.5)'
-    ctx.lineWidth = 4
+    ctx.lineWidth = 3
     ctx.strokeRect(x, y, width, height)
     ctx.fillStyle = '#d4af37'
-    ctx.font = '700 18px Oswald, Arial, sans-serif'
+    ctx.font = '700 14px Oswald, Arial, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('PORTRAIT PENDING', x + width / 2, y + height / 2)
     return
   }
 
-  await new Promise<void>((resolve) => {
-    const image = new Image()
-    // Only remote URLs need CORS; local /assets portraits must load without it.
-    if (/^https?:\/\//i.test(source)) {
-      image.crossOrigin = 'anonymous'
-    }
-    image.onload = () => {
-      ctx.drawImage(image, x, y, width, height)
-      resolve()
-    }
-    image.onerror = () => resolve()
-    image.src = source
-  })
+  await drawCoverPortrait(ctx, source, x, y, width, height, { radius: 12 })
 }
 
 function wrapText(

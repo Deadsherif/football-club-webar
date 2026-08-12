@@ -3,7 +3,8 @@ export const en = {
   brand: 'AL AHLY',
   brandTagline: 'MORE THAN A CLUB',
   landingSubtitle: 'Point your camera at the Al Ahly crest to begin.',
-  startExperience: 'SCAN CREST',
+  startExperience: 'SCAN CREST — AR',
+  scanCrestArHint: 'Explore the crest experience in augmented reality',
   immersiveHint: 'The experience starts when the logo is detected',
 
   journeyTitle: 'YOUR JOURNEY STARTS HERE',
@@ -50,7 +51,7 @@ export const en = {
 
   desktopTitle: 'Open on your phone',
   desktopBody:
-    'This immersive AR experience is designed for mobile. Scan the QR code or open the URL on your phone.',
+    'This immersive AR experience is designed for mobile. Open the URL on your phone, or continue below on desktop.',
   desktopHint: 'Best on iOS Safari or Android Chrome',
 
   fallbackTitle: 'Explore the Legacy',
@@ -147,6 +148,38 @@ export const en = {
   nextEra: 'NEXT ERA',
   previousPlayer: 'PREVIOUS',
   nextPlayer: 'NEXT',
+
+  journeyStartCta: 'SCAN CREST — HISTORY JOURNEY',
+  journeyStartHint: 'Scan the crest to begin with presidents, then trophies, board, and more',
+  journeyBegin: 'BEGIN',
+  journeyDirectCta: 'START JOURNEY (NO SCAN)',
+  journeyExit: 'EXIT JOURNEY',
+  journeyPause: 'PAUSE',
+  journeyResume: 'RESUME',
+  journeyPrev: 'PREV',
+  journeyNext: 'NEXT',
+  journeyFlipCard: 'FLIP CARD',
+  journeyKeysHint: '← → navigate · Space pause · Esc exit · Tap a card to open / flip',
+  journeyReplay: 'REPLAY JOURNEY',
+  journeyCompleteTitle: 'THE LEGACY CONTINUES',
+  journeyHistoryHint: 'Follow the timeline of the club',
+  journeyChapterIntro: 'INTRO',
+  journeyChapterHistory: 'HISTORY',
+  journeyChapterPresidents: 'PRESIDENTS',
+  journeyChapterLegends: 'LEGENDS',
+  journeyChapterTrophies: 'TROPHIES',
+  journeyChapterBoard: 'BOARD',
+  journeyChapterRedCastle: 'RED CASTLE',
+  journeyChapterComplete: 'FINALE',
+  journeyEditView: 'EDIT VIEW',
+  journeyOptCaptions: 'STORY CAPTIONS',
+  journeyOptCompact: 'COMPACT CAPTIONS',
+  journeyOptFreeLook: 'FREE LOOK (ORBIT)',
+  journeyOptChapterBar: 'CHAPTER BAR',
+  journeyOptSpeed: 'AUTO SPEED',
+  journeySpeedSlow: 'SLOW',
+  journeySpeedNormal: 'NORMAL',
+  journeySpeedFast: 'FAST',
 } as const
 
 export type EnKey = keyof typeof en

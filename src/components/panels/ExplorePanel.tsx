@@ -7,6 +7,7 @@ import { boardMembers, redCastleHighlights } from '@/data/boardAndCastle'
 import { redCastleMembers } from '@/data/redCastleMembers'
 import type { ExploreSection } from '@/types/ar'
 import { audio } from '@/services/audioService'
+import { publicUrl } from '@/utils/publicUrl'
 
 interface ExplorePanelProps {
   section: Exclude<ExploreSection, null>
@@ -198,7 +199,7 @@ export function ExplorePanel({
                   className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-start"
                 >
                   <img
-                    src={member.portrait}
+                    src={publicUrl(member.portrait)}
                     alt={member.name}
                     className="h-16 w-12 shrink-0 rounded-lg object-cover object-top"
                   />
@@ -258,7 +259,7 @@ export function ExplorePanel({
                   className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-start"
                 >
                   <img
-                    src={member.portrait}
+                    src={publicUrl(member.portrait)}
                     alt={member.name}
                     className="h-16 w-12 shrink-0 rounded-lg object-cover object-top"
                   />

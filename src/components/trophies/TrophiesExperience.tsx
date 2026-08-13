@@ -9,6 +9,7 @@ import { analytics } from '@/services/analyticsService'
 import { useJourneyChapterSync } from '@/journey/useJourneyChapterSync'
 import { useJourneyOptional } from '@/journey/JourneyContext'
 import { CabinetCloseButton } from '@/components/ui/CabinetCloseButton'
+import { detectDeviceCapability } from '@/utils/deviceCapability'
 
 interface TrophiesExperienceProps {
   onBack: () => void
@@ -45,6 +46,7 @@ export function TrophiesExperience({ onBack }: TrophiesExperienceProps) {
     const el = mountRef.current
     if (!el) return
 
+    let cancelled = false
     const controller = new TrophiesController(el)
     controllerRef.current = controller
     controller.setHooks({
@@ -59,16 +61,27 @@ export function TrophiesExperience({ onBack }: TrophiesExperienceProps) {
       onLabel: setChipLabel,
     })
 
-    void controller.start().then(() => {
-      if (journey?.active) {
-        controller.setStoryLocked(true)
+    const boot = async () => {
+      // Let the previous WebGL chapter release GPU memory on iOS.
+      if (detectDeviceCapability().isMobile) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        })
+        await new Promise((resolve) => window.setTimeout(resolve, 80))
       }
+      if (cancelled) return
+      await controller.start()
+      if (cancelled) return
+      if (journey?.active) controller.setStoryLocked(true)
       setReady(true)
-    })
+    }
+
+    void boot()
     analytics.trophiesOpened()
     analytics.sectionOpened('trophies')
 
     return () => {
+      cancelled = true
       setReady(false)
       controller.stop()
       controllerRef.current = null

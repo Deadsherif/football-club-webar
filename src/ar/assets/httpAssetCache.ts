@@ -125,3 +125,9 @@ export async function fetchCachedBlob(url: string): Promise<Blob> {
 export async function prefetchUrl(url: string): Promise<void> {
   await fetchCachedBuffer(url)
 }
+
+/** Drop in-memory GLB copies so chapter switches do not OOM on mobile. */
+export function clearMemoryAssetCache(): void {
+  memoryBuffers.clear()
+  memoryBlobs.clear()
+}

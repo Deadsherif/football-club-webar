@@ -19,6 +19,7 @@ import {
   getStadiumIntroLightsCam,
 } from '@/ar/stadium/stadiumExploreFraming'
 import { getTrophyIndex } from '@/data/trophies'
+import { clearMemoryAssetCache } from '@/ar/assets/httpAssetCache'
 
 export type TrophiesPhase =
   | 'boot'
@@ -242,8 +243,10 @@ export class TrophiesController {
     this.controls.dispose()
     this.disposeEnvironment?.()
     this.disposeEnvironment = null
+    this.renderer.forceContextLoss?.()
     this.renderer.dispose()
     this.renderer.domElement.remove()
+    clearMemoryAssetCache()
   }
 
   selectByIndex(index: number): void {

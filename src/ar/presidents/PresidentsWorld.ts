@@ -65,8 +65,11 @@ export class PresidentsWorld {
     this.environment.contentRoot.name = 'FloatingPresidentCards'
     this.environment.root.position.y = STADIUM_SCENE_LIFT
 
-    // Prefetch stadium height so crest scenes share trophies camera framing.
-    this.cabinetAltitude = await this.environment.prefetchAlternateAltitude()
+    const capability = detectDeviceCapability()
+    // Skip 73MB stadium prefetch on mobile — it tab-kills /trophies next.
+    if (!capability.isMobile) {
+      this.cabinetAltitude = await this.environment.prefetchAlternateAltitude()
+    }
     if (this.cabinetAltitude <= 0) {
       this.cabinetAltitude = Math.max(
         2.4,
@@ -77,7 +80,6 @@ export class PresidentsWorld {
     this.environment.setLightIntensity(0.45)
 
     const formation = buildCardFormation(presidents)
-    const capability = detectDeviceCapability()
     const { cardScale } = getStadiumViewportFit()
     const maxCards =
       capability.tier === 'low' ? Math.min(10, formation.length) : formation.length

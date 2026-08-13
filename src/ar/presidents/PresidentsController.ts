@@ -20,6 +20,7 @@ import {
   getStadiumIdleOrbitCam,
   getStadiumIntroLightsCam,
 } from '@/ar/stadium/stadiumExploreFraming'
+import { clearMemoryAssetCache } from '@/ar/assets/httpAssetCache'
 
 export type PresidentsPhase =
   | 'boot'
@@ -254,8 +255,10 @@ export class PresidentsController {
     this.controls.dispose()
     this.disposeEnvironment?.()
     this.disposeEnvironment = null
+    this.renderer.forceContextLoss?.()
     this.renderer.dispose()
     this.renderer.domElement.remove()
+    clearMemoryAssetCache()
   }
 
   selectByIndex(index: number): void {

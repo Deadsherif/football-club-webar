@@ -110,7 +110,6 @@ export class TrophiesWorld {
 
   /** Prefetch neighbour trophies for smoother journey Next/Prev on mobile. */
   prefetchAround(id: string): void {
-    if (this.maxResident < 3) return
     const index = this.trophies.findIndex((t) => t.trophy.id === id)
     if (index < 0) return
     const neighbours = [index - 1, index + 1]

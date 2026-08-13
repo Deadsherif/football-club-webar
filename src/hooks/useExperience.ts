@@ -243,7 +243,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (engineRef.current) {
+    if (phase === 'ar' && engineRef.current) {
       engineRef.current.setContentMode('presidents')
       setPresidentsOpen(true)
       return
@@ -252,7 +252,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     captureReturnPath()
     navigate('/presidents')
     preparePresidents()
-  }, [captureReturnPath, navigate, preparePresidents])
+  }, [captureReturnPath, navigate, phase, preparePresidents])
 
   const prepareBoard = useCallback(() => {
     engineRef.current?.stop()
@@ -290,7 +290,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (engineRef.current) {
+    if (phase === 'ar' && engineRef.current) {
       engineRef.current.setContentMode('board')
       setBoardOpen(true)
       return
@@ -299,7 +299,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     captureReturnPath()
     navigate('/board')
     prepareBoard()
-  }, [captureReturnPath, navigate, prepareBoard])
+  }, [captureReturnPath, navigate, phase, prepareBoard])
 
   const prepareRedCastle = useCallback(() => {
     engineRef.current?.stop()
@@ -337,7 +337,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (engineRef.current) {
+    if (phase === 'ar' && engineRef.current) {
       engineRef.current.setContentMode('red-castle')
       setRedCastleOpen(true)
       return
@@ -346,7 +346,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     captureReturnPath()
     navigate('/red-castle')
     prepareRedCastle()
-  }, [captureReturnPath, navigate, prepareRedCastle])
+  }, [captureReturnPath, navigate, phase, prepareRedCastle])
 
   const closePresidentsAr = useCallback(() => {
     setSelectedPresident(null)
@@ -444,7 +444,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setLegendSquadId(historicalSquads[0].id)
     analytics.legendsOpened()
 
-    if (engineRef.current) {
+    if (phase === 'ar' && engineRef.current) {
       engineRef.current.setContentMode('legends')
       engineRef.current.setLegendSquad(historicalSquads[0].id)
       setPresidentsOpen(false)
@@ -462,7 +462,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     captureReturnPath()
     navigate('/legends')
     prepareStandaloneLegends()
-  }, [captureReturnPath, navigate, prepareStandaloneLegends])
+  }, [captureReturnPath, navigate, phase, prepareStandaloneLegends])
 
   const closeLegends = useCallback(() => {
     setSelectedLegend(null)
@@ -522,7 +522,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (engineRef.current) {
+    if (phase === 'ar' && engineRef.current) {
       engineRef.current.setContentMode('trophies')
       setTrophiesOpen(true)
       return
@@ -531,7 +531,7 @@ export function useExperience(options: UseExperienceOptions = {}) {
     captureReturnPath()
     navigate('/trophies')
     prepareTrophies()
-  }, [captureReturnPath, navigate, prepareTrophies])
+  }, [captureReturnPath, navigate, phase, prepareTrophies])
 
   const closeTrophiesAr = useCallback(() => {
     setSelectedTrophy(null)

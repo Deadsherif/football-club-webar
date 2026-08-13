@@ -59,10 +59,10 @@ export function ARPage() {
     selectLegendSquad,
     selectLegendPlayer,
     goLanding,
+    stopAR,
   } = useExperienceContext()
   const journey = useJourney()
   const launchedJourneyRef = useRef(false)
-  const journeyCabinetRef = useRef<string | null>(null)
   const copy = t()
 
   useEffect(() => {
@@ -73,63 +73,11 @@ export function ARPage() {
     if (trackingState !== 'tracking' || launchedJourneyRef.current) return
     launchedJourneyRef.current = true
     journey.startFromScan()
-  }, [journey, trackingState])
-
-  useEffect(() => {
-    if (!journey.active || phase !== 'ar') {
-      journeyCabinetRef.current = null
-      return
-    }
-
-    const chapter = journey.chapter
-    if (!chapter || chapter === 'complete') return
-
-    const firstInChapter = journeyCabinetRef.current !== chapter
-    journeyCabinetRef.current = chapter
-
-    if (chapter === 'presidents') {
-      if (firstInChapter) openPresidents()
-      selectArPresident(firstInChapter ? null : (journey.step?.itemId ?? null))
-      return
-    }
-    if (chapter === 'trophies') {
-      if (firstInChapter) openTrophies()
-      selectArTrophy(firstInChapter ? null : (journey.step?.itemId ?? null))
-      return
-    }
-    if (chapter === 'board') {
-      if (firstInChapter) openBoard()
-      selectArBoardMember(firstInChapter ? null : (journey.step?.itemId ?? null))
-      return
-    }
-    if (chapter === 'red-castle') {
-      if (firstInChapter) openRedCastle()
-      selectArRedCastleMember(
-        firstInChapter ? null : (journey.step?.itemId ?? null),
-      )
-    }
-  }, [
-    journey.active,
-    journey.chapter,
-    journey.step?.itemId,
-    journey.stepIndex,
-    openBoard,
-    openPresidents,
-    openRedCastle,
-    openTrophies,
-    phase,
-    selectArBoardMember,
-    selectArPresident,
-    selectArRedCastleMember,
-    selectArTrophy,
-  ])
+    stopAR()
+  }, [journey, stopAR, trackingState])
 
   const handleExit = () => {
     journey.clearScanStart()
-    if (journey.active) {
-      journey.exit()
-      return
-    }
     goLanding()
   }
 
@@ -145,22 +93,20 @@ export function ARPage() {
   if (phase === 'fallback') {
     return <Navigate to="/menu" replace />
   }
-  if (!journey.active && phase === 'trophies') {
+  if (phase === 'trophies') {
     return <Navigate to="/trophies" replace />
   }
-  if (!journey.active && phase === 'board') {
+  if (phase === 'board') {
     return <Navigate to="/board" replace />
   }
-  if (!journey.active && phase === 'red-castle') {
+  if (phase === 'red-castle') {
     return <Navigate to="/red-castle" replace />
   }
 
   const showArShell = phase === 'loading' || phase === 'ar'
   const activeLegendSquad =
     getHistoricalSquad(legendSquadId) ?? historicalSquads[0]
-  const journeyHere = journey.active || journey.pendingScanStart
   const menuHidden =
-    journeyHere ||
     legendsOpen ||
     presidentsOpen ||
     boardOpen ||
@@ -184,7 +130,7 @@ export function ARPage() {
           onOpenAI={() => setAiOpen(true)}
           onExit={handleExit}
           showOverlay={phase === 'ar'}
-          menuHidden={menuHidden}
+          menuHidden={menuHidden || journey.pendingScanStart}
         />
       )}
 
@@ -217,7 +163,7 @@ export function ARPage() {
         <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
       )}
 
-      {phase === 'ar' && presidentsOpen && !journey.active && (
+      {phase === 'ar' && presidentsOpen && (
         <PresidentsHUD
           phase={selectedPresident ? 'selected' : 'explore'}
           yearLabel={selectedPresident?.yearsLabel ?? '1907'}
@@ -230,7 +176,7 @@ export function ARPage() {
         />
       )}
 
-      {phase === 'ar' && boardOpen && !journey.active && (
+      {phase === 'ar' && boardOpen && (
         <BoardHUD
           phase={selectedBoardMember ? 'selected' : 'explore'}
           roleLabel={selectedBoardMember?.yearsLabel ?? 'Board'}
@@ -243,7 +189,7 @@ export function ARPage() {
         />
       )}
 
-      {phase === 'ar' && redCastleOpen && !journey.active && (
+      {phase === 'ar' && redCastleOpen && (
         <RedCastleHUD
           phase={selectedRedCastleMember ? 'selected' : 'explore'}
           roleLabel={selectedRedCastleMember?.yearsLabel ?? 'El Qalaa'}
@@ -256,7 +202,7 @@ export function ARPage() {
         />
       )}
 
-      {phase === 'ar' && trophiesOpen && !journey.active && (
+      {phase === 'ar' && trophiesOpen && (
         <TrophiesHUD
           phase={selectedTrophy ? 'selected' : 'explore'}
           chipLabel={selectedTrophy?.nameAr ?? 'البطولات'}
@@ -269,7 +215,7 @@ export function ARPage() {
         />
       )}
 
-      {phase === 'ar' && legendsOpen && !journey.active && (
+      {phase === 'ar' && legendsOpen && (
         <LegendsHUD
           squad={activeLegendSquad}
           selected={selectedLegend}

@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { preserveSourceTextures } from '@/ar/effects/studioEnvironment'
+import { simplifyObjectForMobile } from '@/ar/assets/simplifyMobileGlb'
+import { detectDeviceCapability } from '@/utils/deviceCapability'
 
 /**
  * Stylized night-match stadium built from lightweight primitives.
@@ -161,5 +163,6 @@ export function prepareStadiumModel(model: THREE.Object3D, targetWidth = 1.05): 
   model.position.sub(center)
   model.position.y -= box.min.y
 
-  preserveSourceTextures(model)
+  if (detectDeviceCapability().isMobile) simplifyObjectForMobile(model)
+  else preserveSourceTextures(model)
 }

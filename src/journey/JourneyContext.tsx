@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  chapterFromPath,
   firstIndexOfChapter,
   getJourneyStep,
   journeySteps,
@@ -17,6 +18,42 @@ import {
   type JourneyStep,
 } from '@/data/journey'
 import { audio } from '@/services/audioService'
+
+const JOURNEY_STORAGE_KEY = 'alahly-journey-v1'
+
+interface SavedJourney {
+  active: boolean
+  stepIndex: number
+}
+
+function readSavedJourney(): SavedJourney | null {
+  try {
+    const raw = sessionStorage.getItem(JOURNEY_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as SavedJourney
+    if (typeof parsed.active !== 'boolean' || typeof parsed.stepIndex !== 'number') {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeSavedJourney(active: boolean, stepIndex: number): void {
+  try {
+    if (!active) {
+      sessionStorage.removeItem(JOURNEY_STORAGE_KEY)
+      return
+    }
+    sessionStorage.setItem(
+      JOURNEY_STORAGE_KEY,
+      JSON.stringify({ active, stepIndex } satisfies SavedJourney),
+    )
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 export type JourneyDwellSpeed = 'slow' | 'normal' | 'fast'
 
@@ -79,21 +116,45 @@ const JourneyContext = createContext<JourneyContextValue | null>(null)
 
 export function JourneyProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const [active, setActive] = useState(false)
+  const location = useLocation()
+  const saved = typeof sessionStorage !== 'undefined' ? readSavedJourney() : null
+  const [active, setActive] = useState(() => Boolean(saved?.active))
   const [playing, setPlaying] = useState(false)
-  const [stepIndex, setStepIndex] = useState(0)
+  const [stepIndex, setStepIndex] = useState(() =>
+    Math.max(0, Math.min(journeySteps.length - 1, saved?.stepIndex ?? 0)),
+  )
   const [view, setViewState] = useState<JourneyViewSettings>(DEFAULT_VIEW)
   const [pendingScanStart, setPendingScanStart] = useState(false)
   const dwellRef = useRef(0)
   const playingRef = useRef(false)
-  const activeRef = useRef(false)
-  const indexRef = useRef(0)
+  const activeRef = useRef(Boolean(saved?.active))
+  const indexRef = useRef(
+    Math.max(0, Math.min(journeySteps.length - 1, saved?.stepIndex ?? 0)),
+  )
   const dwellSpeedRef = useRef(view.dwellSpeed)
   const pendingScanRef = useRef(false)
 
   useEffect(() => {
     playingRef.current = playing
   }, [playing])
+  useEffect(() => {
+    writeSavedJourney(active, stepIndex)
+  }, [active, stepIndex])
+  useEffect(() => {
+    const chapter = chapterFromPath(location.pathname)
+    if (!chapter) return
+    if (!activeRef.current) {
+      setActive(true)
+      activeRef.current = true
+    }
+    const current = getJourneyStep(indexRef.current)
+    if (current?.chapter === chapter) return
+    const index = firstIndexOfChapter(chapter)
+    if (index < 0) return
+    setStepIndex(index)
+    indexRef.current = index
+    dwellRef.current = 0
+  }, [location.pathname])
   useEffect(() => {
     activeRef.current = active
   }, [active])

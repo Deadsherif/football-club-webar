@@ -104,7 +104,19 @@ export class TrophiesController {
 
     this.scene.fog = new THREE.FogExp2(0x080305, 0.04)
     this.scene.add(this.world.root)
-    this.disposeEnvironment = attachStudioEnvironment(this.renderer, this.scene, 1)
+    if (capability.isMobile) {
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+      this.renderer.toneMappingExposure = 1.05
+      const hemi = new THREE.HemisphereLight(0xfff1e8, 0x1a0808, 0.95)
+      const key = new THREE.DirectionalLight(0xffe6c4, 1.2)
+      key.position.set(2.2, 4.4, 3.0)
+      this.scene.add(hemi, key)
+      this.disposeEnvironment = () => {
+        this.scene.remove(hemi, key)
+      }
+    } else {
+      this.disposeEnvironment = attachStudioEnvironment(this.renderer, this.scene, 1)
+    }
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true

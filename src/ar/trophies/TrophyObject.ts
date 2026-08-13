@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import type { TrophyDefinition } from '@/data/trophies'
 import { assetLoader } from '@/ar/assets/AssetLoader'
 import { preserveSourceTextures } from '@/ar/effects/studioEnvironment'
+import { simplifyObjectForMobile } from '@/ar/assets/simplifyMobileGlb'
+import { detectDeviceCapability } from '@/utils/deviceCapability'
 import { disposeObject3D } from '@/ar/trophies/disposeObject3D'
 
 const TARGET_HEIGHT = 0.55
@@ -412,7 +414,8 @@ export class TrophyObject {
       obj.receiveShadow = false
       obj.visible = true
     })
-    preserveSourceTextures(scene)
+    if (detectDeviceCapability().isMobile) simplifyObjectForMobile(scene)
+    else preserveSourceTextures(scene)
 
     // Replace any stale attach from a racing load.
     if (this.modelRoot) {

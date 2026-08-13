@@ -29,12 +29,16 @@ export class BoardWorld {
   }
 
   async setup(): Promise<void> {
-    await this.environment.setup({ targetWidth: STADIUM_FREE_VIEW_WIDTH })
+    const capability = detectDeviceCapability()
+    await this.environment.setup({
+      targetWidth: STADIUM_FREE_VIEW_WIDTH,
+      preferProcedural: capability.isMobile,
+      maxTextureWidth: capability.isMobile ? 256 : undefined,
+    })
     this.environment.contentRoot.name = 'FloatingBoardCards'
     this.environment.root.position.y = STADIUM_SCENE_LIFT
 
     const formation = buildCardFormation(boardMembers)
-    const capability = detectDeviceCapability()
     const { cardScale } = getStadiumViewportFit()
     const maxCards =
       capability.tier === 'low' ? Math.min(10, formation.length) : formation.length

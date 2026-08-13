@@ -34,6 +34,7 @@ import {
   type TrophyDefinition,
 } from '@/data/trophies'
 import { historicalSquads } from '@/data/squads'
+import { isJourneyPath, JOURNEY_CHAPTER_ROUTES } from '@/data/journey'
 
 interface UseExperienceOptions {
   sceneId?: string
@@ -254,16 +255,20 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (phase === 'ar' && engineRef.current) {
+    if (phase === 'ar' && engineRef.current && !isJourneyPath(location.pathname)) {
       engineRef.current.setContentMode('presidents')
       setPresidentsOpen(true)
       return
     }
 
     captureReturnPath()
-    navigate('/presidents')
+    navigate(
+      isJourneyPath(location.pathname)
+        ? JOURNEY_CHAPTER_ROUTES.presidents
+        : '/presidents',
+    )
     preparePresidents()
-  }, [captureReturnPath, navigate, phase, preparePresidents])
+  }, [captureReturnPath, location.pathname, navigate, phase, preparePresidents])
 
   const prepareBoard = useCallback(() => {
     engineRef.current?.stop()
@@ -301,16 +306,18 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (phase === 'ar' && engineRef.current) {
+    if (phase === 'ar' && engineRef.current && !isJourneyPath(location.pathname)) {
       engineRef.current.setContentMode('board')
       setBoardOpen(true)
       return
     }
 
     captureReturnPath()
-    navigate('/board')
+    navigate(
+      isJourneyPath(location.pathname) ? JOURNEY_CHAPTER_ROUTES.board : '/board',
+    )
     prepareBoard()
-  }, [captureReturnPath, navigate, phase, prepareBoard])
+  }, [captureReturnPath, location.pathname, navigate, phase, prepareBoard])
 
   const prepareRedCastle = useCallback(() => {
     engineRef.current?.stop()
@@ -348,16 +355,20 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (phase === 'ar' && engineRef.current) {
+    if (phase === 'ar' && engineRef.current && !isJourneyPath(location.pathname)) {
       engineRef.current.setContentMode('red-castle')
       setRedCastleOpen(true)
       return
     }
 
     captureReturnPath()
-    navigate('/red-castle')
+    navigate(
+      isJourneyPath(location.pathname)
+        ? JOURNEY_CHAPTER_ROUTES['red-castle']
+        : '/red-castle',
+    )
     prepareRedCastle()
-  }, [captureReturnPath, navigate, phase, prepareRedCastle])
+  }, [captureReturnPath, location.pathname, navigate, phase, prepareRedCastle])
 
   const closePresidentsAr = useCallback(() => {
     setSelectedPresident(null)
@@ -533,16 +544,20 @@ export function useExperience(options: UseExperienceOptions = {}) {
     setSelectedRedCastleMember(null)
     setSelectedTrophy(null)
 
-    if (phase === 'ar' && engineRef.current) {
+    if (phase === 'ar' && engineRef.current && !isJourneyPath(location.pathname)) {
       engineRef.current.setContentMode('trophies')
       setTrophiesOpen(true)
       return
     }
 
     captureReturnPath()
-    navigate('/trophies')
+    navigate(
+      isJourneyPath(location.pathname)
+        ? JOURNEY_CHAPTER_ROUTES.trophies
+        : '/trophies',
+    )
     prepareTrophies()
-  }, [captureReturnPath, navigate, phase, prepareTrophies])
+  }, [captureReturnPath, location.pathname, navigate, phase, prepareTrophies])
 
   const closeTrophiesAr = useCallback(() => {
     setSelectedTrophy(null)

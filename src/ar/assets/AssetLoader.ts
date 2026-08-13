@@ -76,7 +76,7 @@ async function decodeBlobToImageBitmap(
     if (cap >= 2048) {
       attempts.push({ ...baseOptions })
     }
-    for (const width of [2048, 1536, 1024, 768, 512]) {
+    for (const width of [2048, 1536, 1024, 768, 512, 384, 256]) {
       if (width > cap) continue
       attempts.push({
         ...baseOptions,

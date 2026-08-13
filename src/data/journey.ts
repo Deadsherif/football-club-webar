@@ -22,6 +22,17 @@ export function isJourneyPath(path: string): boolean {
   return path === '/journey' || path.startsWith('/journey/')
 }
 
+export function chapterFromPath(path: string): JourneyChapter | null {
+  if (path.startsWith(JOURNEY_CHAPTER_ROUTES.trophies)) return 'trophies'
+  if (path.startsWith(JOURNEY_CHAPTER_ROUTES.board)) return 'board'
+  if (path.startsWith(JOURNEY_CHAPTER_ROUTES['red-castle'])) return 'red-castle'
+  if (path.startsWith(JOURNEY_CHAPTER_ROUTES.complete)) return 'complete'
+  if (path.startsWith(JOURNEY_CHAPTER_ROUTES.presidents) || path === '/journey') {
+    return 'presidents'
+  }
+  return null
+}
+
 export interface JourneyStep {
   id: string
   chapter: JourneyChapter

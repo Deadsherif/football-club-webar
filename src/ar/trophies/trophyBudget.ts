@@ -18,38 +18,19 @@ export interface TrophyLoadBudget {
 }
 
 /**
- * Trophy GLBs are ~20–40MB each. Mobile keeps a tiny resident set,
- * but still loads the stadium GLB on mid/high phones (downscaled textures).
+ * Trophy GLBs are ~20–40MB and stadium.glb is ~73MB.
+ * Mobile uses a light stadium + tiny textures + one cup at a time.
  */
 export function getTrophyLoadBudget(
   capability: DeviceCapability = detectDeviceCapability(),
 ): TrophyLoadBudget {
   if (capability.isMobile) {
-    if (capability.tier === 'low') {
-      return {
-        maxResidentModels: 2,
-        maxPreload: 2,
-        // Same stadium GLB as PC — keep backdrop position/look identical.
-        preferProceduralStadium: false,
-        maxTextureWidth: 512,
-        stadiumTextureWidth: 512,
-      }
-    }
-    if (capability.tier === 'mid') {
-      return {
-        maxResidentModels: 4,
-        maxPreload: 3,
-        preferProceduralStadium: false,
-        maxTextureWidth: 768,
-        stadiumTextureWidth: 512,
-      }
-    }
     return {
-      maxResidentModels: 6,
-      maxPreload: 4,
-      preferProceduralStadium: false,
-      maxTextureWidth: 1024,
-      stadiumTextureWidth: 768,
+      maxResidentModels: 1,
+      maxPreload: 0,
+      preferProceduralStadium: true,
+      maxTextureWidth: capability.tier === 'high' ? 384 : 256,
+      stadiumTextureWidth: 256,
     }
   }
 

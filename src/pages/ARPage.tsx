@@ -93,14 +93,26 @@ export function ARPage() {
   if (phase === 'fallback') {
     return <Navigate to="/menu" replace />
   }
-  if (!journey.active && phase === 'trophies') {
-    return <Navigate to="/trophies" replace />
+  if (phase === 'trophies') {
+    return (
+      <Navigate
+        to={journey.active ? '/journey/trophies' : '/trophies'}
+        replace
+      />
+    )
   }
-  if (!journey.active && phase === 'board') {
-    return <Navigate to="/board" replace />
+  if (phase === 'board') {
+    return (
+      <Navigate to={journey.active ? '/journey/board' : '/board'} replace />
+    )
   }
-  if (!journey.active && phase === 'red-castle') {
-    return <Navigate to="/red-castle" replace />
+  if (phase === 'red-castle') {
+    return (
+      <Navigate
+        to={journey.active ? '/journey/red-castle' : '/red-castle'}
+        replace
+      />
+    )
   }
 
   const showArShell = phase === 'loading' || phase === 'ar'

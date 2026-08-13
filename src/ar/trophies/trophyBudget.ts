@@ -18,13 +18,14 @@ export interface TrophyLoadBudget {
 }
 
 /**
- * Mobile keeps the real stadium + every trophy GLB, with smaller textures.
+ * Mobile uses pre-baked *.mobile.glb (real meshes + color textures).
+ * Decode cap stays modest so GPU memory stays low.
  */
 export function getTrophyLoadBudget(
   capability: DeviceCapability = detectDeviceCapability(),
 ): TrophyLoadBudget {
   if (capability.isMobile) {
-    const textureWidth = capability.tier === 'high' ? 768 : capability.tier === 'mid' ? 512 : 384
+    const textureWidth = capability.tier === 'high' ? 512 : 384
     return {
       maxResidentModels: trophies.length,
       maxPreload: trophies.length,

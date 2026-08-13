@@ -10,6 +10,7 @@ import {
   computeArStadiumContentFit,
   type ArStadiumContentFit,
 } from '@/ar/stadium/arContentFit'
+import { detectDeviceCapability } from '@/utils/deviceCapability'
 
 export type StadiumBackdropKind = 'primary' | 'alternate' | 'stacked'
 
@@ -288,6 +289,7 @@ export class StadiumEnvironment {
 
     try {
       const model = await assetLoader.loadGLB(url, options.onProgress, {
+        cache: !detectDeviceCapability().isMobile,
         maxTextureWidth:
           this.maxTextureWidth ??
           options.maxTextureWidth ??

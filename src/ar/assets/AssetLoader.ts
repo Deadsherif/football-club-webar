@@ -5,6 +5,7 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Object3D } from 'three'
 import type { AssetLoadProgress } from '@/types/ar'
 import { fetchCachedBuffer, prefetchUrl } from '@/ar/assets/httpAssetCache'
+import { resolveModelSrc } from '@/ar/assets/resolveModelSrc'
 
 export type ProgressCallback = (progress: AssetLoadProgress) => void
 
@@ -262,6 +263,7 @@ export class AssetLoader {
     onProgress?: ProgressCallback,
     options?: LoadGLBOptions,
   ): Promise<Object3D> {
+    url = resolveModelSrc(url)
     const progress = options?.onProgress ?? onProgress
     const useCache = options?.cache !== false
     const maxTextureWidth = options?.maxTextureWidth ?? 2048
@@ -274,7 +276,7 @@ export class AssetLoader {
 
   /** Download into Cache Storage + memory so the next parse skips the network. */
   prefetch(url: string): Promise<void> {
-    return prefetchUrl(url)
+    return prefetchUrl(resolveModelSrc(url))
   }
 
   private loadGltf(

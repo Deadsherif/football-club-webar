@@ -1,5 +1,11 @@
 import { publicUrl } from '@/utils/publicUrl'
 
+function isMobileGlbUrl(url: string): boolean {
+  if (!/\.glb(\?|$)/i.test(url)) return false
+  if (typeof navigator === 'undefined') return false
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+}
+
 const CACHE_NAME = 'alahly-assets-v1'
 
 const memoryBuffers = new Map<string, ArrayBuffer>()
@@ -36,7 +42,7 @@ export async function fetchCachedBuffer(
     const cached = cache ? await cache.match(url) : undefined
     if (cached) {
       const buf = await cached.arrayBuffer()
-      memoryBuffers.set(url, buf)
+      if (!isMobileGlbUrl(url)) memoryBuffers.set(url, buf)
       return buf
     }
 
@@ -72,7 +78,7 @@ export async function fetchCachedBuffer(
       buffer = await response.arrayBuffer()
     }
 
-    memoryBuffers.set(url, buffer)
+    if (!isMobileGlbUrl(url)) memoryBuffers.set(url, buffer)
     if (cache) {
       try {
         await cache.put(url, new Response(buffer.slice(0), { headers: response.headers }))

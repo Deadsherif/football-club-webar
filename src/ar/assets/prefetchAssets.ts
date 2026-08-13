@@ -26,11 +26,8 @@ async function runPrefetch(): Promise<void> {
   const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
 
   try {
-    // Skip heavy GLBs on phones — they load on demand, simplified.
-    if (!mobile) {
-      await assetLoader.prefetch(PRESIDENTS_CREST_MODEL_SRC)
-      await assetLoader.prefetch(CLUB_CREST_SCENE.modelSrc)
-    }
+    await assetLoader.prefetch(PRESIDENTS_CREST_MODEL_SRC)
+    await assetLoader.prefetch(CLUB_CREST_SCENE.modelSrc)
   } catch (error) {
     console.warn('[prefetch] models', error)
   }

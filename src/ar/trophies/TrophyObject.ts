@@ -391,6 +391,7 @@ export class TrophyObject {
   private async loadModel(generation: number): Promise<void> {
     const scene = await assetLoader.loadGLB(this.trophy.modelSrc, undefined, {
       maxTextureWidth: this.maxTextureWidth,
+      cache: !detectDeviceCapability().isMobile,
     })
     if (this.disposed || generation !== this.loadGeneration) {
       disposeObject3D(scene, { textures: true })

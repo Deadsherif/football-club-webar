@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "preview:https": "cross-env VITE_HTTPS=true vite preview",
-    "compile:target": "node scripts/compile-target.mjs"
+    "compile:target": "node scripts/compile-target.mjs",
+    "build:mobile-glbs": "node scripts/build-mobile-glbs.mjs"
   },
   "dependencies": {
     "mind-ar": "^1.2.5",
@@ -20,6 +21,9 @@
     "three": "0.159.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
     "@napi-rs/canvas": "^1.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
@@ -29,6 +33,7 @@
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.4",
     "cross-env": "^10.1.0",
+    "meshoptimizer": "^1.2.0",
     "oxlint": "^1.75.0",
     "playwright": "^1.62.1",
     "sharp": "^0.35.3",

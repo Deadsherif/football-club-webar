@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 interface LandingScreenProps {
   onStartAr: () => void
   onStartJourneyScan: () => void
+  onStartJourneyDirect: () => void
   onContinueInteractive?: () => void
   crestSrc: string
 }
@@ -10,6 +11,7 @@ interface LandingScreenProps {
 export function LandingScreen({
   onStartAr,
   onStartJourneyScan,
+  onStartJourneyDirect,
   onContinueInteractive,
   crestSrc,
 }: LandingScreenProps) {
@@ -45,8 +47,16 @@ export function LandingScreen({
         <div className="mt-10 flex w-full max-w-xs flex-col gap-3">
           <button
             type="button"
-            onClick={onStartJourneyScan}
+            onClick={onStartJourneyDirect}
             className="min-h-14 w-full rounded-full bg-gradient-to-br from-ahly-red to-ahly-crimson px-8 py-4 text-sm font-bold tracking-[0.14em] text-white shadow-[0_16px_48px_rgba(227,6,19,0.45)] transition active:scale-[0.98]"
+          >
+            {copy.journeyDirectCta}
+          </button>
+
+          <button
+            type="button"
+            onClick={onStartJourneyScan}
+            className="min-h-12 w-full rounded-full border border-pitch-gold/40 bg-pitch-gold/10 px-8 py-3 text-xs font-semibold tracking-[0.14em] text-pitch-gold backdrop-blur-sm transition active:scale-[0.98]"
           >
             {copy.journeyStartCta}
           </button>

@@ -2,7 +2,7 @@
 export const ar = {
   brand: 'الأهلي',
   brandTagline: 'أكثر من نادٍ',
-  landingSubtitle: 'وجّه الكاميرا نحو شعار الأهلي للبدء.',
+  landingSubtitle: 'ابدأ رحلة الأهلي، أو امسح الشعار للدخول إلى القصة نفسها.',
   startExperience: 'امسح الشعار — واقع معزز',
   scanCrestArHint: 'استكشف تجربة الشعار بالواقع المعزز',
   immersiveHint: 'تبدأ التجربة عند التعرّف على الشعار',
@@ -148,7 +148,8 @@ export const ar = {
   nextPlayer: 'التالي',
 
   journeyStartCta: 'امسح الشعار — رحلة التاريخ',
-  journeyStartHint: 'امسح الشعار لتبدأ من الرؤساء ثم البطولات ومجلس الإدارة والمزيد',
+  journeyStartHint:
+    'ابدأ بدون مسح، أو امسح الشعار لتبدأ من الرؤساء ثم البطولات ومجلس الإدارة والمزيد',
   journeyBegin: 'ابدأ',
   journeyDirectCta: 'ابدأ الرحلة (بدون مسح)',
   journeyExit: 'خروج من الرحلة',

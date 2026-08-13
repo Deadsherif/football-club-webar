@@ -2,7 +2,7 @@
 export const en = {
   brand: 'AL AHLY',
   brandTagline: 'MORE THAN A CLUB',
-  landingSubtitle: 'Point your camera at the Al Ahly crest to begin.',
+  landingSubtitle: 'Start the Al Ahly journey, or scan the crest to enter the same story.',
   startExperience: 'SCAN CREST — AR',
   scanCrestArHint: 'Explore the crest experience in augmented reality',
   immersiveHint: 'The experience starts when the logo is detected',
@@ -150,7 +150,8 @@ export const en = {
   nextPlayer: 'NEXT',
 
   journeyStartCta: 'SCAN CREST — HISTORY JOURNEY',
-  journeyStartHint: 'Scan the crest to begin with presidents, then trophies, board, and more',
+  journeyStartHint:
+    'Start without a scan, or scan the crest to begin with presidents, then trophies, board, and more',
   journeyBegin: 'BEGIN',
   journeyDirectCta: 'START JOURNEY (NO SCAN)',
   journeyExit: 'EXIT JOURNEY',

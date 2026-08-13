@@ -33,11 +33,20 @@ export function DesktopGate({
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
+          {onStartJourneyDirect && (
+            <button
+              type="button"
+              onClick={onStartJourneyDirect}
+              className="min-h-12 rounded-full bg-gradient-to-br from-ahly-red to-ahly-crimson px-6 text-xs font-bold tracking-[0.14em] text-white"
+            >
+              {copy.journeyDirectCta}
+            </button>
+          )}
           {onStartJourneyScan && (
             <button
               type="button"
               onClick={onStartJourneyScan}
-              className="min-h-12 rounded-full bg-gradient-to-br from-ahly-red to-ahly-crimson px-6 text-xs font-bold tracking-[0.14em] text-white"
+              className="min-h-12 rounded-full border border-pitch-gold/40 bg-pitch-gold/10 px-6 text-xs font-semibold tracking-[0.14em] text-pitch-gold"
             >
               {copy.journeyStartCta}
             </button>
@@ -49,15 +58,6 @@ export function DesktopGate({
               className="min-h-12 rounded-full border border-white/25 bg-black/35 px-6 text-xs font-bold tracking-[0.14em] text-white"
             >
               {copy.startExperience}
-            </button>
-          )}
-          {onStartJourneyDirect && (
-            <button
-              type="button"
-              onClick={onStartJourneyDirect}
-              className="min-h-12 rounded-full border border-pitch-gold/35 bg-pitch-gold/10 px-6 text-xs font-semibold tracking-[0.14em] text-pitch-gold"
-            >
-              {copy.journeyDirectCta}
             </button>
           )}
           {onPreviewInteractive && (

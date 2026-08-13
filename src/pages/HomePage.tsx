@@ -49,6 +49,7 @@ export function HomePage() {
     <LandingScreen
       onStartAr={startAr}
       onStartJourneyScan={startJourneyScan}
+      onStartJourneyDirect={journey.start}
       onContinueInteractive={openFallback}
       crestSrc={crestSrc}
     />

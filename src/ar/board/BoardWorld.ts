@@ -32,8 +32,7 @@ export class BoardWorld {
     const capability = detectDeviceCapability()
     await this.environment.setup({
       targetWidth: STADIUM_FREE_VIEW_WIDTH,
-      preferProcedural: capability.isMobile,
-      maxTextureWidth: capability.isMobile ? 256 : undefined,
+      maxTextureWidth: capability.isMobile ? 512 : undefined,
     })
     this.environment.contentRoot.name = 'FloatingBoardCards'
     this.environment.root.position.y = STADIUM_SCENE_LIFT

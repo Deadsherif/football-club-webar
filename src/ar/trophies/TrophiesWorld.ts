@@ -17,7 +17,7 @@ import type { Camera } from 'three'
 
 /**
  * Same stadium orientation/lighting as Presidents, with floating trophy GLBs.
- * Models load on demand under a hard resident budget (mobile OOM guard).
+ * Mobile still loads the real stadium + all cups, with smaller textures.
  * Stadium stays centered — no journey left-column split.
  */
 export class TrophiesWorld {
@@ -67,7 +67,6 @@ export class TrophiesWorld {
       this.environment.contentRoot.add(obj.group)
     }
 
-    // Kick a tiny preload after placeholders are on screen — never all GLBs.
     void this.preloadInitial()
   }
 
@@ -110,7 +109,6 @@ export class TrophiesWorld {
 
   /** Prefetch neighbour trophies for smoother journey Next/Prev on mobile. */
   prefetchAround(id: string): void {
-    if (this.maxResident < 3) return
     const index = this.trophies.findIndex((t) => t.trophy.id === id)
     if (index < 0) return
     const neighbours = [index - 1, index + 1]

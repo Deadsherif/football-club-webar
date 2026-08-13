@@ -62,22 +62,17 @@ export class PresidentsWorld {
       modelSrc: PRESIDENTS_CREST_MODEL_SRC,
       maxTextureWidth: capability.isMobile
         ? capability.tier === 'high'
-          ? 384
-          : 256
+          ? 768
+          : 512
         : undefined,
-      alternateModelSrc: capability.isMobile
-        ? undefined
-        : CLUB_CREST_SCENE.modelSrc,
+      alternateModelSrc: CLUB_CREST_SCENE.modelSrc,
       alternateTargetWidth: STADIUM_FREE_VIEW_WIDTH,
     })
     this.environment.contentRoot.name = 'FloatingPresidentCards'
     this.environment.root.position.y = STADIUM_SCENE_LIFT
 
     // Prefetch stadium height so crest scenes share trophies camera framing.
-    // Mobile skips the 73MB stadium GLB — keep a stable cabinet height.
-    this.cabinetAltitude = capability.isMobile
-      ? 0
-      : await this.environment.prefetchAlternateAltitude()
+    this.cabinetAltitude = await this.environment.prefetchAlternateAltitude()
     if (this.cabinetAltitude <= 0) {
       this.cabinetAltitude = Math.max(
         2.4,

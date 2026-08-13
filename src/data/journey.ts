@@ -10,6 +10,18 @@ export type JourneyChapter =
   | 'red-castle'
   | 'complete'
 
+export const JOURNEY_CHAPTER_ROUTES: Record<JourneyChapter, string> = {
+  presidents: '/journey/presidents',
+  trophies: '/journey/trophies',
+  board: '/journey/board',
+  'red-castle': '/journey/red-castle',
+  complete: '/journey/complete',
+}
+
+export function isJourneyPath(path: string): boolean {
+  return path === '/journey' || path.startsWith('/journey/')
+}
+
 export interface JourneyStep {
   id: string
   chapter: JourneyChapter
@@ -37,7 +49,7 @@ function buildSteps(): JourneyStep[] {
     steps.push({
       id: `president-${p.id}`,
       chapter: 'presidents',
-      route: '/presidents',
+      route: JOURNEY_CHAPTER_ROUTES.presidents,
       itemId: p.id,
       yearLabel: p.yearsLabel,
       titleEn: p.name,
@@ -51,7 +63,7 @@ function buildSteps(): JourneyStep[] {
     steps.push({
       id: `trophy-${trophy.id}`,
       chapter: 'trophies',
-      route: '/trophies',
+      route: JOURNEY_CHAPTER_ROUTES.trophies,
       itemId: trophy.id,
       yearLabel: String(count),
       titleEn: trophy.nameEn,
@@ -67,7 +79,7 @@ function buildSteps(): JourneyStep[] {
     steps.push({
       id: `board-${member.id}`,
       chapter: 'board',
-      route: '/board',
+      route: JOURNEY_CHAPTER_ROUTES.board,
       itemId: member.id,
       yearLabel: member.yearsLabel,
       titleEn: member.name,
@@ -80,7 +92,7 @@ function buildSteps(): JourneyStep[] {
     steps.push({
       id: `castle-${member.id}`,
       chapter: 'red-castle',
-      route: '/red-castle',
+      route: JOURNEY_CHAPTER_ROUTES['red-castle'],
       itemId: member.id,
       yearLabel: member.yearsLabel,
       titleEn: member.name,
@@ -92,7 +104,7 @@ function buildSteps(): JourneyStep[] {
   steps.push({
     id: 'complete',
     chapter: 'complete',
-    route: '/journey/complete',
+    route: JOURNEY_CHAPTER_ROUTES.complete,
     yearLabel: '∞',
     titleEn: 'The Legacy Continues',
     titleAr: 'الإرث مستمر',

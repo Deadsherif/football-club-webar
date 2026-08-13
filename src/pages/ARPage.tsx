@@ -93,13 +93,13 @@ export function ARPage() {
   if (phase === 'fallback') {
     return <Navigate to="/menu" replace />
   }
-  if (phase === 'trophies') {
+  if (!journey.active && phase === 'trophies') {
     return <Navigate to="/trophies" replace />
   }
-  if (phase === 'board') {
+  if (!journey.active && phase === 'board') {
     return <Navigate to="/board" replace />
   }
-  if (phase === 'red-castle') {
+  if (!journey.active && phase === 'red-castle') {
     return <Navigate to="/red-castle" replace />
   }
 

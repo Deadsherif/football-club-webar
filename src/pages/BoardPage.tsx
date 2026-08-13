@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { useExperienceContext } from '@/experience/ExperienceContext'
+import { useJourneyOptional } from '@/journey/JourneyContext'
 
 const BoardExperience = lazy(() =>
   import('@/components/board/BoardExperience').then((m) => ({
@@ -9,10 +10,19 @@ const BoardExperience = lazy(() =>
 
 export function BoardPage() {
   const { prepareBoard, backFromBoard } = useExperienceContext()
+  const journey = useJourneyOptional()
 
   useEffect(() => {
     prepareBoard()
   }, [prepareBoard])
+
+  const onBack = () => {
+    if (journey?.active) {
+      journey.prev()
+      return
+    }
+    backFromBoard()
+  }
 
   return (
     <Suspense
@@ -22,7 +32,7 @@ export function BoardPage() {
         </div>
       }
     >
-      <BoardExperience onBack={backFromBoard} />
+      <BoardExperience onBack={onBack} />
     </Suspense>
   )
 }

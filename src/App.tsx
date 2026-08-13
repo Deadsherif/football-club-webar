@@ -15,6 +15,7 @@ import { ExplorePage } from '@/pages/ExplorePage'
 import { CameraErrorPage } from '@/pages/CameraErrorPage'
 import { UnsupportedPage } from '@/pages/UnsupportedPage'
 import { CompleteJourneyPage } from '@/pages/CompleteJourneyPage'
+import { JourneyEntryPage } from '@/pages/JourneyEntryPage'
 import { prefetchJourneyAssets } from '@/ar/assets/prefetchAssets'
 
 export default function App() {
@@ -36,6 +37,11 @@ export default function App() {
             <Route path="/red-castle" element={<RedCastlePage />} />
             <Route path="/legends" element={<LegendsPage />} />
             <Route path="/trophies" element={<TrophiesPage />} />
+            <Route path="/journey" element={<JourneyEntryPage />} />
+            <Route path="/journey/presidents" element={<PresidentsPage />} />
+            <Route path="/journey/trophies" element={<TrophiesPage />} />
+            <Route path="/journey/board" element={<BoardPage />} />
+            <Route path="/journey/red-castle" element={<RedCastlePage />} />
             <Route path="/journey/complete" element={<CompleteJourneyPage />} />
             <Route path="/menu" element={<MenuPage />} />
             <Route path="/explore/:section" element={<ExplorePage />} />

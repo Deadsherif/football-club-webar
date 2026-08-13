@@ -48,11 +48,22 @@ const EXPERIENCE_ROUTES = new Set([
 ])
 
 function phaseForPath(path: string, isDesktop: boolean): AppPhase {
-  if (path.startsWith('/presidents')) return 'presidents'
-  if (path.startsWith('/board')) return 'board'
-  if (path.startsWith('/red-castle')) return 'red-castle'
+  if (path.startsWith('/journey/presidents') || path.startsWith('/presidents')) {
+    return 'presidents'
+  }
+  if (path.startsWith('/journey/board') || path.startsWith('/board')) {
+    return 'board'
+  }
+  if (
+    path.startsWith('/journey/red-castle') ||
+    path.startsWith('/red-castle')
+  ) {
+    return 'red-castle'
+  }
   if (path.startsWith('/legends')) return 'legends'
-  if (path.startsWith('/trophies')) return 'trophies'
+  if (path.startsWith('/journey/trophies') || path.startsWith('/trophies')) {
+    return 'trophies'
+  }
   if (path.startsWith('/menu') || path.startsWith('/explore')) return 'fallback'
   if (path.startsWith('/ar')) return 'ar'
   if (path.startsWith('/camera-error')) return 'camera-error'

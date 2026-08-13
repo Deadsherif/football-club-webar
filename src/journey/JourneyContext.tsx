@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   firstIndexOfChapter,
   getJourneyStep,
@@ -16,6 +16,7 @@ import {
   type JourneyChapter,
   type JourneyStep,
 } from '@/data/journey'
+import { useExperienceContext } from '@/experience/ExperienceContext'
 import { audio } from '@/services/audioService'
 
 export type JourneyDwellSpeed = 'slow' | 'normal' | 'fast'
@@ -79,6 +80,9 @@ const JourneyContext = createContext<JourneyContextValue | null>(null)
 
 export function JourneyProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { stopAR } = useExperienceContext()
+  const locationRef = useRef(location.pathname)
   const [active, setActive] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -91,6 +95,9 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
   const dwellSpeedRef = useRef(view.dwellSpeed)
   const pendingScanRef = useRef(false)
 
+  useEffect(() => {
+    locationRef.current = location.pathname
+  }, [location.pathname])
   useEffect(() => {
     playingRef.current = playing
   }, [playing])
@@ -116,7 +123,10 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
         setPlaying(opts.play)
         playingRef.current = opts.play
       }
-      navigate(step.route)
+      // Stay on /ar so mobile scan journey never jumps to standalone interactive pages.
+      if (locationRef.current !== '/ar') {
+        navigate(step.route)
+      }
     },
     [navigate],
   )
@@ -160,8 +170,9 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
     setPlaying(false)
     playingRef.current = false
     dwellRef.current = 0
+    stopAR()
     navigate('/')
-  }, [navigate])
+  }, [navigate, stopAR])
 
   const next = useCallback(() => {
     void audio.play('ui')
@@ -288,12 +299,7 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
             dwellRef.current = 0
             const nextIndex = indexRef.current + 1
             if (nextIndex < journeySteps.length) {
-              const nextStep = getJourneyStep(nextIndex)
-              if (nextStep) {
-                setStepIndex(nextIndex)
-                indexRef.current = nextIndex
-                navigate(nextStep.route)
-              }
+              goToIndex(nextIndex)
             } else {
               setPlaying(false)
               playingRef.current = false
@@ -305,7 +311,7 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [active, navigate])
+  }, [active, goToIndex])
 
   const step = getJourneyStep(stepIndex)
   const value = useMemo<JourneyContextValue>(
